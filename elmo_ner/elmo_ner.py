@@ -20,7 +20,7 @@ elmo_ner_logger = logging.getLogger(__name__)
 
 class ELMo_NER(BaseEstimator, ClassifierMixin):
     def __init__(self, elmo_hub_module_handle: str, finetune_elmo: bool=False,
-                 batch_size: int=32, max_seq_length: int=512, lr: float=1e-3, l2_reg: float=1e-4,
+                 batch_size: int=32, max_seq_length: int=32, lr: float=1e-3, l2_reg: float=1e-4,
                  validation_fraction: float=0.1, max_epochs: int=10, patience: int=3, gpu_memory_frac: float=1.0,
                  verbose: bool=False, random_seed: Union[int, None]=None):
         self.batch_size = batch_size
@@ -99,23 +99,29 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             tokens=self.input_tokens_,
             sequence_len=self.sequence_lengths_
         )
-        elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=True)
+        elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
         self.tokenizer_ = NISTTokenizer()
-        elmo_outputs = elmo_module(elmo_inputs, signature='tokens', as_dict=True)
-        sequence_output = elmo_outputs['elmo']
+        sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
         if self.verbose:
             elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
         X_tokenized, y_tokenized = self.tokenize_all(X, y)
         n_tags = len(self.classes_list_) * 2 + 1
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         if self.finetune_elmo:
-            self.logits_ = tf.layers.dense(sequence_output, n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
+            with tf.variable_scope("crf_layer"):
+                W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
+                sequence_output = tf.reshape(sequence_output, [-1, 1024])
+                pred = tf.matmul(sequence_output, W) + b
+                self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
         else:
             sequence_output_stop = tf.stop_gradient(sequence_output)
-            self.logits_ = tf.layers.dense(sequence_output_stop, n_tags, activation=None,
-                                           kernel_regularizer=tf.nn.l2_loss, kernel_initializer=he_init,
-                                           name='outputs_of_NER')
+            with tf.variable_scope("crf_layer"):
+                W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
+                sequence_output_stop = tf.reshape(sequence_output_stop, [-1, 1024])
+                pred = tf.matmul(sequence_output_stop, W) + b
+                self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
                                                                               self.sequence_lengths_)
         loss_tensor = -log_likelihood
@@ -322,8 +328,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 (
                     X[idx],
                     np.full(
-                        shape=((n_extend, self.max_seq_length) if len(X[idx].shape) == 2 else
-                               (n_extend, self.max_seq_length, X[idx].shape[2])),
+                        shape=((n_extend, self.max_seq_length) if len(X[idx].shape) == 2 else (n_extend,)),
                         fill_value=X[idx][-1],
                         dtype=X[idx].dtype
                     )
@@ -358,10 +363,11 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
                 tokenized_text = self.tokenizer_.international_tokenize(source_text)
-                if len(tokenized_text) > self.max_seq_length:
+                ndiff = len(tokenized_text) - self.max_seq_length
+                if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
-                elif len(tokenized_text) < self.max_seq_length:
-                    tokenized_text += ['' for _ in range(self.max_seq_length - len(tokenized_text))]
+                elif ndiff < 0:
+                    tokenized_text += ['' for _ in range(-ndiff)]
                 tokens.append(tokenized_text)
                 lenghts.append(len(tokenized_text))
         else:
@@ -372,12 +378,13 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
                     source_text, self.classes_list_, y[sample_idx])
                 y_tokenized[sample_idx] = self.detect_token_labels(
-                    tokenized_text, bounds_of_tokens, indices_of_named_entities, labels_IDs, self.max_seq_length
+                    bounds_of_tokens, indices_of_named_entities, labels_IDs, self.max_seq_length
                 )
-                if len(tokenized_text) > self.max_seq_length:
+                ndiff = len(tokenized_text) - self.max_seq_length
+                if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
-                elif len(tokenized_text) < self.max_seq_length:
-                    tokenized_text += ['' for _ in range(self.max_seq_length - len(tokenized_text))]
+                elif ndiff < 0:
+                    tokenized_text += ['' for _ in range(-ndiff)]
                 tokens.append(tokenized_text)
                 lenghts.append(len(tokenized_text))
         return [np.array(tokens, dtype=np.str), np.array(lenghts, dtype=np.int32)], \
@@ -540,38 +547,43 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     tokens=self.input_tokens_,
                     sequence_len=self.sequence_lengths_
                 )
-                elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=True)
-                elmo_outputs = elmo_module(elmo_inputs, signature='tokens', as_dict=True)
-                sequence_output = elmo_outputs['elmo']
+                elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
+                sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
                 if self.verbose:
                     elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
                 n_tags = len(self.classes_list_) * 2 + 1
                 he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
                 if self.finetune_elmo:
-                    self.logits_ = tf.layers.dense(sequence_output, n_tags, activation=None,
-                                                   kernel_regularizer=tf.nn.l2_loss,
-                                                   kernel_initializer=he_init, name='outputs_of_NER')
+                    with tf.variable_scope("crf_layer"):
+                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                        b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
+                        sequence_output = tf.reshape(sequence_output, [-1, 1024])
+                        pred = tf.matmul(sequence_output, W) + b
+                        self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
                 else:
                     sequence_output_stop = tf.stop_gradient(sequence_output)
-                    self.logits_ = tf.layers.dense(sequence_output_stop, n_tags, activation=None,
-                                                   kernel_regularizer=tf.nn.l2_loss, kernel_initializer=he_init,
-                                                   name='outputs_of_NER')
+                    with tf.variable_scope("crf_layer"):
+                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                        b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
+                        sequence_output_stop = tf.reshape(sequence_output_stop, [-1, 1024])
+                        pred = tf.matmul(sequence_output_stop, W) + b
+                        self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
                 log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
                                                                                       self.sequence_lengths_)
                 loss_tensor = -log_likelihood
                 base_loss = tf.reduce_mean(loss_tensor)
-                regularization_loss = self.l2_reg * tf.reduce_sum(
-                    tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+                regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
                 final_loss = base_loss + regularization_loss
                 self.transition_params_ = transition_params
                 with tf.name_scope('train'):
-                    optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9,
-                                                          epsilon=1e-10)
-                    _ = optimizer.minimize(final_loss)
+                    optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
+                    train_op = optimizer.minimize(final_loss)
                 with tf.name_scope('eval'):
                     seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, self.sequence_lengths_,
                                                                    self.transition_params_)
-                    _ = tf.reduce_mean(tf.cast(seq_scores, tf.float32))
+                    seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_,
+                                                           self.transition_params_)
+                    accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
                 saver = tf.train.Saver()
                 saver.restore(self.sess_, os.path.join(tmp_dir_name, new_params['model_name_']))
             finally:
@@ -1018,36 +1030,18 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         return indices_of_named_entities, labels_to_classes
 
     @staticmethod
-    def detect_token_labels(tokens: List[str], bounds_of_tokens: List[tuple], indices_of_named_entities: np.ndarray,
-                            label_ids: dict, max_seq_length: int) -> np.ndarray:
+    def detect_token_labels(bounds_of_tokens: List[tuple], indices_of_named_entities: np.ndarray, label_ids: dict,
+                            max_seq_length: int) -> np.ndarray:
         res = np.zeros((max_seq_length,), dtype=np.int32)
-        n = min(len(bounds_of_tokens), max_seq_length - 2)
+        n = min(len(bounds_of_tokens), max_seq_length)
         for token_idx, cur in enumerate(bounds_of_tokens[:n]):
             distr = np.zeros((len(label_ids) + 1,), dtype=np.int32)
             for char_idx in range(cur[0], cur[1]):
                 distr[indices_of_named_entities[char_idx]] += 1
             label_id = distr.argmax()
             if label_id > 0:
-                res[token_idx + 1] = label_id
+                res[token_idx] = label_id
             del distr
-        prev_label_id = 0
-        for token_idx in range(max_seq_length):
-            if token_idx >= n:
-                break
-            cur_label_id = res[token_idx + 1]
-            if cur_label_id != prev_label_id:
-                if tokens[token_idx].startswith('##'):
-                    if prev_label_id > 0:
-                        res[token_idx +1] = prev_label_id
-                        cur_label_id = prev_label_id
-                    else:
-                        token_idx_ = token_idx - 1
-                        while token_idx_ >= 0:
-                            res[token_idx_ + 1] = cur_label_id
-                            if not tokens[token_idx_].startswith('##'):
-                                break
-                            token_idx_ -= 1
-            prev_label_id = cur_label_id
         prev_label_id = 0
         for token_idx in range(max_seq_length):
             cur_label_id = res[token_idx]

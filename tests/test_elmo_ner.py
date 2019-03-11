@@ -820,7 +820,7 @@ class TestELMoNER(unittest.TestCase):
         true_bounds = [(0, 4), (5, 7), (8, 17), (18, 32), (33, 38), (38, 39), (40, 51), (52, 53), (53, 66), (67, 70),
                        (70, 71), (71, 72), (73, 79), (80, 82), (82, 83), (83, 85), (86, 95), (96, 99), (100, 105),
                        (105, 106), (107, 110), (111, 116), (117, 119), (120, 130), (131, 136), (136, 137), (137, 141),
-                       (142, 148), (149, 159), (150, 168)]
+                       (142, 148), (149, 159), (160, 168)]
         self.assertEqual(true_bounds, ELMo_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
 
     def test_detect_token_labels_positive01(self):
@@ -836,7 +836,7 @@ class TestELMoNER(unittest.TestCase):
         )
         label_IDs = {1: 1, 2: 2, 3: 1}
         y_true = np.array([2, 1, 0, 0, 4, 3, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0], dtype=np.int32)
-        y_pred = ELMo_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 16)
+        y_pred = ELMo_NER.detect_token_labels(token_bounds, indices_of_named_entities, label_IDs, 16)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -860,7 +860,7 @@ class TestELMoNER(unittest.TestCase):
             [0, 2, 1, 4, 0, 6, 4, 3, 3, 3, 3, 0, 8, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             dtype=np.int32
         )
-        y_pred = ELMo_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
+        y_pred = ELMo_NER.detect_token_labels(token_bounds, indices_of_named_entities, label_IDs, 32)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -1923,7 +1923,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_fit_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
@@ -1964,7 +1964,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_fit_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
@@ -2006,7 +2006,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_fit_positive03(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
@@ -2047,7 +2047,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_fit_predict(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
@@ -2105,7 +2105,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_serialize_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
@@ -2247,7 +2247,7 @@ class TestELMoNER(unittest.TestCase):
 
     def test_copy_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         self.ner.fit(X_train, y_train)
