@@ -11,19 +11,15 @@ import numpy as np
 from sklearn.exceptions import NotFittedError
 
 try:
-    from deep_ner.elmo_ner import ELMo_NER
+    from deep_ner.bert_ner import BERT_NER
     from deep_ner.utils import load_dataset
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.elmo_ner import ELMo_NER
+    from deep_ner.bert_ner import BERT_NER
     from deep_ner.utils import load_dataset
 
 
-class TestELMoNER(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.ELMO_HUB_MODULE = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
-
+class TestBertNer(unittest.TestCase):
     def tearDown(self):
         if hasattr(self, 'ner'):
             del self.ner
@@ -34,13 +30,15 @@ class TestELMoNER(unittest.TestCase):
                 os.remove(self.temp_file_name)
 
     def test_creation(self):
-        self.ner = ELMo_NER(elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        self.assertIsInstance(self.ner, ELMo_NER)
+        self.ner = BERT_NER()
+        self.assertIsInstance(self.ner, BERT_NER)
         self.assertTrue(hasattr(self.ner, 'batch_size'))
+        self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.ner, 'clip_norm'))
+        self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(self.ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
         self.assertTrue(hasattr(self.ner, 'patience'))
         self.assertTrue(hasattr(self.ner, 'random_seed'))
@@ -49,9 +47,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.ner, 'verbose'))
         self.assertIsInstance(self.ner.batch_size, int)
+        self.assertIsInstance(self.ner.lstm_units, int)
         self.assertIsInstance(self.ner.lr, float)
         self.assertIsInstance(self.ner.l2_reg, float)
-        self.assertIsInstance(self.ner.finetune_elmo, bool)
+        self.assertIsInstance(self.ner.clip_norm, float)
+        self.assertIsInstance(self.ner.bert_hub_module_handle, str)
+        self.assertIsInstance(self.ner.finetune_bert, bool)
         self.assertIsInstance(self.ner.max_epochs, int)
         self.assertIsInstance(self.ner.patience, int)
         self.assertIsNone(self.ner.random_seed)
@@ -61,365 +62,425 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(self.ner.verbose, bool)
 
     def test_check_params_positive(self):
-        ELMo_NER.check_params(
-            elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3,
-            l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-            random_seed=42
+        BERT_NER.check_params(
+            bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', finetune_bert=True,
+            batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
+            max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=None
         )
         self.assertTrue(True)
 
     def test_check_params_negative001(self):
-        true_err_msg = re.escape('`elmo_hub_module_handle` is not specified!')
+        true_err_msg = re.escape('`bert_hub_module_handle` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative002(self):
-        true_err_msg = re.escape('`elmo_hub_module_handle` is wrong! Expected `{0}`, got `{1}`.'.format(
+        true_err_msg = re.escape('`bert_hub_module_handle` is wrong! Expected `{0}`, got `{1}`.'.format(
             type('abc'), type(123)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=1, finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle=1, finetune_bert=True,
+                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative003(self):
         true_err_msg = re.escape('`batch_size` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, max_seq_length=512, lr=1e-3,
-                l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative004(self):
         true_err_msg = re.escape('`batch_size` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size='32', max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size='32', max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative005(self):
         true_err_msg = re.escape('`batch_size` is wrong! Expected a positive integer value, but -3 is not positive.')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=-3, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=-3, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative006(self):
         true_err_msg = re.escape('`max_epochs` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative007(self):
         true_err_msg = re.escape('`max_epochs` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs='10', patience=3,
-                gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs='10', patience=3, gpu_memory_frac=1.0, verbose=False,
+                random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative008(self):
         true_err_msg = re.escape('`max_epochs` is wrong! Expected a positive integer value, but -3 is not positive.')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative009(self):
         true_err_msg = re.escape('`patience` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative010(self):
         true_err_msg = re.escape('`patience` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0, verbose=False,
+                random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative011(self):
         true_err_msg = re.escape('`patience` is wrong! Expected a positive integer value, but -3 is not positive.')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative012(self):
         true_err_msg = re.escape('`max_seq_length` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE,
-                finetune_elmo=True, batch_size=32, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10,
-                patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative013(self):
         true_err_msg = re.escape('`max_seq_length` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length='512',
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length='512', lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative014(self):
         true_err_msg = re.escape('`max_seq_length` is wrong! Expected a positive integer value, but -3 is not '
                                  'positive.')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=-3,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=-3, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative015(self):
         true_err_msg = re.escape('`validation_fraction` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative016(self):
         true_err_msg = re.escape('`validation_fraction` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3.5), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
+                random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative017(self):
         true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, but ' \
                        '{0} is not positive.'.format(-0.1)
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative018(self):
         true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, but ' \
                        '{0} is not less than 1.0.'.format(1.1)
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative019(self):
         true_err_msg = re.escape('`gpu_memory_frac` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative020(self):
         true_err_msg = re.escape('`gpu_memory_frac` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3.5), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0',
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0', verbose=False,
+                random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative021(self):
         true_err_msg = re.escape('`gpu_memory_frac` is wrong! Expected a floating-point value in the (0.0, 1.0], '
                                  'but {0} is not proper.'.format(-1.0))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative022(self):
         true_err_msg = re.escape('`gpu_memory_frac` is wrong! Expected a floating-point value in the (0.0, 1.0], '
                                  'but {0} is not proper.'.format(1.3))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative023(self):
         true_err_msg = re.escape('`lr` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative024(self):
         true_err_msg = re.escape('`lr` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3.5), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr='1e-3', l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative025(self):
         true_err_msg = re.escape('`lr` is wrong! Expected a positive floating-point value, but {0} is not '
                                  'positive.'.format(0.0))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=0.0, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative026(self):
         true_err_msg = re.escape('`lr` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative027(self):
         true_err_msg = re.escape('`lr` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3.5), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr='1e-3', l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative028(self):
         true_err_msg = re.escape('`lr` is wrong! Expected a positive floating-point value, but {0} is not '
                                  'positive.'.format(0.0))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=0.0, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative029(self):
         true_err_msg = re.escape('`l2_reg` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, clip_norm=5.0, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative030(self):
         true_err_msg = re.escape('`l2_reg` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(3.5), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg='1e-4', validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg='1e-4', clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative031(self):
         true_err_msg = re.escape('`l2_reg` is wrong! Expected a non-negative floating-point value, but {0} is '
                                  'negative.'.format(-2.0))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=-2.0, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=-2.0, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative032(self):
-        true_err_msg = re.escape('`finetune_elmo` is not specified!')
+        true_err_msg = re.escape('`finetune_bert` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, clip_norm=5.0,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative033(self):
-        true_err_msg = re.escape('`finetune_elmo` is wrong! Expected `{0}`, got `{1}`.'.format(
+        true_err_msg = re.escape('`finetune_bert` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(True), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo='True', batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert='True', batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=128
             )
 
     def test_check_params_negative034(self):
         true_err_msg = re.escape('`verbose` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42, lstm_units=128
             )
 
     def test_check_params_negative035(self):
         true_err_msg = re.escape('`verbose` is wrong! Expected `{0}`, got `{1}`.'.format(
             type(True), type('3')))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_params(
-                elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
-                lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose='False', random_seed=42
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose='False',
+                random_seed=42, lstm_units=128
+            )
+
+    def test_check_params_negative036(self):
+        true_err_msg = re.escape('`lstm_units` is not specified!')
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            )
+
+    def test_check_params_negative037(self):
+        true_err_msg = re.escape('`lstm_units` is wrong! Expected `{0}`, got `{1}`.'.format(
+            type(3), type('3')))
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                lstm_units='128', finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                clip_norm=5.0, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
+                random_seed=42
+            )
+
+    def test_check_params_negative038(self):
+        true_err_msg = re.escape('`lstm_units` is wrong! Expected a positive integer value, but -3 is not positive.')
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                lstm_units=-3
             )
 
     def test_check_X_positive(self):
         X = ['abc', 'defgh', '4wdffg']
-        ELMo_NER.check_X(X, 'X_train')
+        BERT_NER.check_X(X, 'X_train')
         self.assertTrue(True)
 
     def test_check_X_negative01(self):
         X = {'abc', 'defgh', '4wdffg'}
         true_err_msg = re.escape('`X_train` is wrong, because it is not list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_X(X, 'X_train')
+            BERT_NER.check_X(X, 'X_train')
 
     def test_check_X_negative02(self):
         X = np.random.uniform(-1.0, 1.0, (10, 2))
         true_err_msg = re.escape('`X_train` is wrong, because it is not 1-D list!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_X(X, 'X_train')
+            BERT_NER.check_X(X, 'X_train')
 
     def test_check_X_negative03(self):
         X = ['abc', 23, '4wdffg']
         true_err_msg = re.escape('Item 1 of `X_train` is wrong, because it is not string-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_X(X, 'X_train')
+            BERT_NER.check_X(X, 'X_train')
 
     def text_check_Xy_positive(self):
         X = [
@@ -442,7 +503,7 @@ class TestELMoNER(unittest.TestCase):
             }
         ]
         true_classes_list = ('LOC', 'ORG', 'PER')
-        self.assertEqual(true_classes_list, ELMo_NER.check_Xy(X, 'X_train', y, 'y_train'))
+        self.assertEqual(true_classes_list, BERT_NER.check_Xy(X, 'X_train', y, 'y_train'))
 
     def text_check_Xy_negative01(self):
         X = {
@@ -466,7 +527,7 @@ class TestELMoNER(unittest.TestCase):
         ]
         true_err_msg = re.escape('`X_train` is wrong, because it is not list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative02(self):
         X = [
@@ -490,7 +551,7 @@ class TestELMoNER(unittest.TestCase):
         }
         true_err_msg = re.escape('`y_train` is wrong, because it is not a list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative03(self):
         X = [
@@ -504,7 +565,7 @@ class TestELMoNER(unittest.TestCase):
         y = np.random.uniform(-1.0, 1.0, (10, 2))
         true_err_msg = re.escape('`y_train` is wrong, because it is not 1-D list!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative04(self):
         X = [
@@ -531,7 +592,7 @@ class TestELMoNER(unittest.TestCase):
         ]
         true_err_msg = re.escape('Length of `X_train` does not correspond to length of `y_train`! 2 != 3')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative05(self):
         X = [
@@ -551,7 +612,7 @@ class TestELMoNER(unittest.TestCase):
         ]
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because it is not a dictionary-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative06(self):
         X = [
@@ -575,7 +636,7 @@ class TestELMoNER(unittest.TestCase):
         ]
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because its key `1` is not a string-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative07(self):
         X = [
@@ -600,7 +661,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `O` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative08(self):
         X = [
@@ -625,7 +686,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `123` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative09(self):
         X = [
@@ -650,7 +711,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `loc` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative10(self):
         X = [
@@ -675,7 +736,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because its value `{0}` is not a list-like '
                                  'object!'.format(y[0]['PER']))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative11(self):
         X = [
@@ -700,7 +761,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because named entity bounds `63` are not specified as '
                                  'list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative12(self):
         X = [
@@ -725,7 +786,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because named entity bounds `{0}` are not specified as '
                                  '2-D list!'.format((63, 77, 81)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative13(self):
         X = [
@@ -750,7 +811,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((219, 196)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative14(self):
         X = [
@@ -775,7 +836,7 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((196, 519)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative15(self):
         X = [
@@ -800,34 +861,73 @@ class TestELMoNER(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((-1, 137)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            ELMo_NER.check_Xy(X, 'X_train', y, 'y_train')
+            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
 
     def test_calculate_bounds_of_tokens_positive01(self):
         source_text = 'Совершенно новую технологию перекачки российской водки за рубеж начали использовать ' \
                       'контрабандисты.'
-        tokenized_text = ['Совершенно', 'новую', 'технологию', 'перекачки', 'российской', 'водки', 'за', 'рубеж',
-                          'начали', 'использовать', 'контрабандисты', '.']
-        true_bounds = [(0, 10), (11, 16), (17, 27), (28, 37), (38, 48), (49, 54), (55, 57), (58, 63), (64, 70),
-                       (71, 83), (84, 98), (98, 99)]
-        self.assertEqual(true_bounds, ELMo_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+        tokenized_text = ['Со', '##вер', '##шен', '##но', 'новую', 'тех', '##но', '##логи', '##ю', 'пер', '##ека',
+                          '##чки', 'российской', 'вод', '##ки', 'за', 'р', '##уб', '##еж', 'начали', 'использовать',
+                          'кон', '##тра', '##бан', '##ди', '##сты', '.']
+        true_bounds = [(0, 2), (2, 5), (5, 8), (8, 10), (11, 16), (17, 20), (20, 22), (22, 26), (26, 27), (28, 31),
+                       (31, 34), (34, 37), (38, 48), (49, 52), (52, 54), (55, 57), (58, 59), (59, 61), (61, 63),
+                       (64, 70), (71, 83), (84, 87), (87, 90), (90, 93), (93, 95), (95, 98), (98, 99)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
 
     def test_calculate_bounds_of_tokens_positive02(self):
+        source_text = 'Кстати за два дня до итальянцев, мальтийские пограничники уже задерживали лодку. ' \
+                      'Однако они только дали им топливо, помогли завести двигатель и указали дорогу.'
+        tokenized_text = ['К', '##стат', '##и', 'за', 'два', 'дня', 'до', 'итал', '##ья', '##нцев', ',', 'мал', '##ьт',
+                          '##ий', '##ские', 'по', '##гра', '##ни', '##чники', 'уже', 'за', '##дер', '##живал', '##и',
+                          'ло', '##дку', '.', 'Однако', 'они', 'только', 'дали', 'им', 'топ', '##ливо', ',', 'пом',
+                          '##ог', '##ли', 'за', '##вести', 'д', '##вигатель', 'и', 'ук', '##аза', '##ли', 'дорог',
+                          '##у', '.']
+        true_bounds = [(0, 1), (1, 5), (5, 6), (7, 9), (10, 13), (14, 17), (18, 20), (21, 25), (25, 27), (27, 31),
+                       (31, 32), (33, 36), (36, 38), (38, 40), (40, 44), (45, 47), (47, 50), (50, 52), (52, 57),
+                       (58, 61), (62, 64), (64, 67), (67, 72), (72, 73), (74, 76), (76, 79), (79, 80), (81, 87),
+                       (88, 91), (92, 98), (99, 103), (104, 106), (107, 110), (110, 114), (114, 115), (116, 119),
+                       (119, 121), (121, 123), (124, 126), (126, 131), (132, 133), (133, 141), (142, 143), (144, 146),
+                       (146, 149), (149, 151), (152, 157), (157, 158), (158, 159)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+
+    def test_calculate_bounds_of_tokens_positive03(self):
         source_text = 'Один из последних представителей клады, тираннозавр (Tyrannosaurus rex), живший 66–67 ' \
                       'миллионов лет назад, был одним из крупнейших когда-либо живших сухопутных хищников'
-        tokenized_text = ['Один', 'из', 'последних', 'представителей', 'клады', ',', 'тираннозавр', '(',
-                          'Tyrannosaurus', 'rex', ')', ',', 'живший', '66', '–', '67', 'миллионов', 'лет', 'назад', ',',
-                          'был', 'одним', 'из', 'крупнейших', 'когда', '-', 'либо', 'живших', 'сухопутных', 'хищников']
-        true_bounds = [(0, 4), (5, 7), (8, 17), (18, 32), (33, 38), (38, 39), (40, 51), (52, 53), (53, 66), (67, 70),
-                       (70, 71), (71, 72), (73, 79), (80, 82), (82, 83), (83, 85), (86, 95), (96, 99), (100, 105),
-                       (105, 106), (107, 110), (111, 116), (117, 119), (120, 130), (131, 136), (136, 137), (137, 141),
-                       (142, 148), (149, 159), (160, 168)]
-        self.assertEqual(true_bounds, ELMo_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+        tokenized_text = ['Один', 'из', 'последних', 'представителей', 'к', '##лады', ',', 'ти', '##ран', '##но',
+                          '##за', '##вр', '(', 'Ty', '##ranno', '##saurus', 'rex', ')', ',', 'жив', '##ший', '66',
+                          '[UNK]', '67', 'миллионов', 'лет', 'назад', ',', 'был', 'одним', 'из', 'крупнейших', 'когда',
+                          '-', 'либо', 'жив', '##ших', 'су', '##хо', '##пу', '##тных', 'х', '##и', '##щ', '##ников']
+        true_bounds = [(0, 4), (5, 7), (8, 17), (18, 32), (33, 34), (34, 38), (38, 39), (40, 42), (42, 45), (45, 47),
+                       (47, 49), (49, 51), (52, 53), (53, 55), (55, 60), (60, 66), (67, 70), (70, 71), (71, 72),
+                       (73, 76), (76, 79), (80, 82), (82, 83), (83, 85), (86, 95), (96, 99), (100, 105), (105, 106),
+                       (107, 110), (111, 116), (117, 119), (120, 130), (131, 136), (136, 137), (137, 141), (142, 145),
+                       (145, 148), (149, 151), (151, 153), (153, 155), (155, 159), (160, 161), (161, 162), (162, 163),
+                       (163, 168)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+
+    def test_calculate_bounds_of_tokens_positive04(self):
+        source_text = '–༼༽❆♖мама坦'
+        tokenized_text = ['[UNK]', '[UNK]', '[UNK]', '[UNK]', '坦']
+        true_bounds = [(0, 1), (1, 2), (2, 3), (3, 4), (9, 10)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+
+    def test_calculate_bounds_of_tokens_positive05(self):
+        source_text = '–༼ ༽❆♖мама坦мыла раму'
+        tokenized_text = ['[UNK]', '[UNK]', '[UNK]', '[UNK]', '坦', 'мы', '##ла', 'р', '##ам', '##у']
+        true_bounds = [(0, 1), (1, 2), (3, 4), (4, 5), (10, 11), (11, 13), (13, 15), (16, 17), (17, 19), (19, 20)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
+
+    def test_calculate_bounds_of_tokens_positive06(self):
+        source_text = 'Ёжик идёт домой'
+        tokenized_text = ['Ё', '##жи', '##к', 'идёт', 'домой']
+        true_bounds = [(0, 1), (1, 3), (3, 4), (5, 9), (10, 15)]
+        self.assertEqual(true_bounds, BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text))
 
     def test_detect_token_labels_positive01(self):
         source_text = 'Барак Обама принимает в Белом доме своего французского коллегу Николя Саркози.'
-        tokenized_text = ['Барак', 'Обама', 'принимает', 'в', 'Белом', 'доме', 'своего',
-                          'французского', 'коллегу', 'Николя', 'Саркози', '.']
-        token_bounds = ELMo_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
+        tokenized_text = ['Ба', '##рак', 'Об', '##ама', 'принимает', 'в', 'Б', '##елом', 'доме', 'своего',
+                          'французского', 'кол', '##ле', '##гу', 'Н', '##ико', '##ля', 'Са', '##рко', '##зи', '.']
+        token_bounds = BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
         indices_of_named_entities = np.array(
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0,
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3,
@@ -835,8 +935,11 @@ class TestELMoNER(unittest.TestCase):
             dtype=np.int32
         )
         label_IDs = {1: 1, 2: 2, 3: 1}
-        y_true = np.array([2, 1, 0, 0, 4, 3, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0], dtype=np.int32)
-        y_pred = ELMo_NER.detect_token_labels(token_bounds, indices_of_named_entities, label_IDs, 16)
+        y_true = np.array(
+            [0, 2, 1, 1, 1, 0, 0, 4, 3, 3, 0, 0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            dtype=np.int32
+        )
+        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -844,10 +947,12 @@ class TestELMoNER(unittest.TestCase):
     def test_detect_token_labels_positive02(self):
         source_text = 'С 1876 г Павлов ассистирует профессору К. Н. Устимовичу в Медико-хирургической академии и ' \
                       'параллельно изучает физиологию кровообращения.'
-        tokenized_text = ['С', '1876', 'г', 'Павлов', 'ассистирует', 'профессору', 'К', '.', 'Н', '.', 'Устимовичу',
-                          'в', 'Медико', '-', 'хирургической', 'академии', 'и', 'параллельно', 'изучает', 'физиологию',
-                          'кровообращения', '.']
-        token_bounds = ELMo_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
+        tokenized_text = ['С', '1876', 'г', 'Павло', '##в', 'а', '##сси', '##сти', '##рует', 'профессор', '##у', 'К',
+                          '.', 'Н', '.', 'У', '##сти', '##мов', '##ич', '##у', 'в', 'М', '##еди', '##ко', '-',
+                          'х', '##ир', '##ург', '##ической', 'академии', 'и', 'пара', '##лл', '##ельно',
+                          'из', '##уч', '##ает', 'ф', '##из', '##ио', '##логи', '##ю',
+                          'к', '##рово', '##об', '##ращения', '.']
+        token_bounds = BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
         indices_of_named_entities = np.array(
             [0, 0, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3,
              3, 3, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -857,10 +962,53 @@ class TestELMoNER(unittest.TestCase):
         )
         label_IDs = {1: 1, 2: 2, 3: 3, 4: 2, 5: 4}
         y_true = np.array(
-            [0, 2, 1, 4, 0, 6, 4, 3, 3, 3, 3, 0, 8, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 2, 1, 4, 3, 0, 0, 0, 0, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3, 3, 0, 8, 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             dtype=np.int32
         )
-        y_pred = ELMo_NER.detect_token_labels(token_bounds, indices_of_named_entities, label_IDs, 32)
+        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 64)
+        self.assertIsInstance(y_pred, np.ndarray)
+        self.assertEqual(y_true.shape, y_pred.shape)
+        self.assertEqual(y_true.tolist(), y_pred.tolist())
+
+    def test_detect_token_labels_positive03(self):
+        source_text = 'Весной 1890 года Варшавский и Томский университеты избирают его профессором.'
+        tokenized_text = ['В', '##есной', '1890', 'года', 'В', '##ар', '##ша', '##вский', 'и', 'Томск', '##ий',
+                          'университет', '##ы', 'из', '##бира', '##ют', 'его', 'профессором', '.']
+        token_bounds = BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
+        indices_of_named_entities = np.array(
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 3, 3, 3, 3, 3, 3,
+             3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             0, 0, 0, 0],
+            dtype=np.int32
+        )
+        label_IDs = {1: 1, 2: 2, 3: 2}
+        y_true = np.array(
+            [0, 2, 1, 1, 1, 4, 3, 3, 3, 3, 4, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            dtype=np.int32
+        )
+        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
+        self.assertIsInstance(y_pred, np.ndarray)
+        self.assertEqual(y_true.shape, y_pred.shape)
+        self.assertEqual(y_true.tolist(), y_pred.tolist())
+
+    def test_detect_token_labels_positive04(self):
+        source_text = 'Барак Обама принимает в Белом доме своего французского коллегу Николя Саркози.'
+        tokenized_text = ['Ба', '##рак', 'Об', '##ама', 'принимает', 'в', 'Б', '##елом', 'доме', 'своего',
+                          'французского', 'кол', '##ле', '##гу', 'Н', '##ико', '##ля', 'Са', '##рко', '##зи', '.']
+        token_bounds = BERT_NER.calculate_bounds_of_tokens(source_text, tokenized_text)
+        indices_of_named_entities = np.array(
+            [0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 0,
+             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3,
+             3, 3, 3, 3, 0, 0, 0],
+            dtype=np.int32
+        )
+        label_IDs = {1: 1, 2: 2, 3: 1}
+        y_true = np.array(
+            [0, 2, 1, 1, 1, 0, 0, 4, 3, 3, 0, 0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            dtype=np.int32
+        )
+        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -876,7 +1024,7 @@ class TestELMoNER(unittest.TestCase):
             dtype=np.int32
         )
         true_labels_to_classes = {1: 1, 2: 3, 3: 3}
-        indices, labels_to_classes = ELMo_NER.calculate_indices_of_named_entities(source_text, classes_list,
+        indices, labels_to_classes = BERT_NER.calculate_indices_of_named_entities(source_text, classes_list,
                                                                                   named_entities)
         self.assertIsInstance(indices, np.ndarray)
         self.assertIsInstance(labels_to_classes, dict)
@@ -892,7 +1040,7 @@ class TestELMoNER(unittest.TestCase):
         true_tokens = ['Один', 'из', 'последних', 'представителей', 'клады', ',', 'тираннозавр', '(', 'Tyrannosaurus',
                        'rex', ')', ',', 'живший', '66', '–', '67', 'миллионов', 'лет', 'назад', ',', 'был', 'одним',
                        'из', 'крупнейших', 'когда', '-', 'либо', 'живших', 'сухопутных', 'хищников']
-        self.assertEqual(true_tokens, ELMo_NER.tokenize_by_character_groups(source_text))
+        self.assertEqual(true_tokens, BERT_NER.tokenize_by_character_groups(source_text))
 
     def test_calc_similarity_between_entities_positive01(self):
         gold_entity = (3, 9)
@@ -901,7 +1049,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 6
         true_fp = 0
         true_fn = 0
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -914,7 +1062,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 4
         true_fp = 2
         true_fn = 0
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -927,7 +1075,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 4
         true_fp = 0
         true_fn = 2
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -940,7 +1088,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 5
         true_fp = 1
         true_fn = 1
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -953,7 +1101,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 5
         true_fp = 1
         true_fn = 1
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -966,7 +1114,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 0
         true_fp = 6
         true_fn = 6
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -979,7 +1127,7 @@ class TestELMoNER(unittest.TestCase):
         true_tp = 0
         true_fp = 2
         true_fn = 6
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
+        similarity, tp, fp, fn = BERT_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
         self.assertAlmostEqual(true_similarity, similarity, places=4)
         self.assertEqual(true_tp, tp)
         self.assertEqual(true_fp, fp)
@@ -990,7 +1138,7 @@ class TestELMoNER(unittest.TestCase):
         X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
         self.assertEqual(X_true, X_pred)
-        f1, precision, recall = ELMo_NER.calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
+        f1, precision, recall = BERT_NER.calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
         self.assertIsInstance(f1, float)
         self.assertIsInstance(precision, float)
         self.assertIsInstance(recall, float)
@@ -1000,16 +1148,18 @@ class TestELMoNER(unittest.TestCase):
 
     def test_fit_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, lstm_units=32)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
+        self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'clip_norm'))
+        self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1018,10 +1168,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.clip_norm, float)
+        self.assertIsInstance(res.bert_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1030,28 +1182,35 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'input_ids_'))
+        self.assertTrue(hasattr(res, 'input_mask_'))
+        self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertIsInstance(res.shapes_list_, tuple)
+        self.assertGreater(len(res.shapes_list_), 3)
+        self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
 
     def test_fit_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=True, max_epochs=3, batch_size=2, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=42, lstm_units=32)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
+        self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'clip_norm'))
+        self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1060,10 +1219,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.clip_norm, float)
+        self.assertIsInstance(res.bert_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1077,27 +1238,31 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'input_ids_'))
+        self.assertTrue(hasattr(res, 'input_mask_'))
+        self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
-        self.assertGreater(len(res.shapes_list_), 0)
+        self.assertGreater(len(res.shapes_list_), 3)
+        self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
 
     def test_fit_positive03(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, lstm_units=None, clip_norm=None)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
+        self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'clip_norm'))
+        self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1106,10 +1271,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
+        self.assertIsNone(res.lstm_units)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsNone(res.clip_norm, None)
+        self.assertIsInstance(res.bert_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1122,27 +1289,31 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'input_ids_'))
+        self.assertTrue(hasattr(res, 'input_mask_'))
+        self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
-        self.assertGreater(len(res.shapes_list_), 0)
+        self.assertGreater(len(res.shapes_list_), 3)
+        self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
 
     def test_fit_predict(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
+        self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'clip_norm'))
+        self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1151,10 +1322,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.clip_norm, float)
+        self.assertIsInstance(res.bert_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1167,14 +1340,16 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'input_ids_'))
+        self.assertTrue(hasattr(res, 'input_mask_'))
+        self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
-        self.assertGreater(len(res.shapes_list_), 0)
+        self.assertGreater(len(res.shapes_list_), 3)
+        self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
         y_pred = res.predict(X_train)
         self.assertIsInstance(y_pred, list)
         self.assertEqual(len(X_train), len(y_pred))
@@ -1187,24 +1362,25 @@ class TestELMoNER(unittest.TestCase):
 
     def test_predict_negative(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, random_seed=None,
-                            elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, random_seed=None)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         with self.assertRaises(NotFittedError):
             _ = self.ner.predict(X_train)
 
     def test_serialize_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
+        self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'clip_norm'))
+        self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1213,10 +1389,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.clip_norm, float)
+        self.assertIsInstance(res.bert_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1229,14 +1407,16 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'input_ids_'))
+        self.assertTrue(hasattr(res, 'input_mask_'))
+        self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
-        self.assertGreater(len(res.shapes_list_), 0)
+        self.assertGreater(len(res.shapes_list_), 3)
+        self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
         y_pred1 = res.predict(X_train)
         self.assertIsInstance(y_pred1, list)
         self.assertEqual(len(X_train), len(y_pred1))
@@ -1263,12 +1443,14 @@ class TestELMoNER(unittest.TestCase):
                 self.assertEqual(y_pred1[sample_idx][ne_type], y_pred2[sample_idx][ne_type])
 
     def test_serialize_positive02(self):
-        self.ner = ELMo_NER(random_seed=31, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(random_seed=31)
         old_batch_size = self.ner.batch_size
+        old_lstm_units = self.ner.lstm_units
         old_lr = self.ner.lr
         old_l2_reg = self.ner.l2_reg
-        old_elmo_hub_module_handle = self.ner.elmo_hub_module_handle
-        old_finetune_elmo = self.ner.finetune_elmo
+        old_clip_norm = self.ner.clip_norm
+        old_bert_hub_module_handle = self.ner.bert_hub_module_handle
+        old_finetune_bert = self.ner.finetune_bert
         old_max_epochs = self.ner.max_epochs
         old_patience = self.ner.patience
         old_random_seed = self.ner.random_seed
@@ -1283,12 +1465,14 @@ class TestELMoNER(unittest.TestCase):
         gc.collect()
         with open(self.temp_file_name, mode='rb') as fp:
             self.ner = pickle.load(fp)
-        self.assertIsInstance(self.ner, ELMo_NER)
+        self.assertIsInstance(self.ner, BERT_NER)
         self.assertTrue(hasattr(self.ner, 'batch_size'))
+        self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.ner, 'clip_norm'))
+        self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(self.ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
         self.assertTrue(hasattr(self.ner, 'patience'))
         self.assertTrue(hasattr(self.ner, 'random_seed'))
@@ -1297,10 +1481,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.ner, 'verbose'))
         self.assertEqual(self.ner.batch_size, old_batch_size)
+        self.assertEqual(self.ner.lstm_units, old_lstm_units)
         self.assertAlmostEqual(self.ner.lr, old_lr)
         self.assertAlmostEqual(self.ner.l2_reg, old_l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, old_elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, old_finetune_elmo)
+        self.assertAlmostEqual(self.ner.clip_norm, old_clip_norm)
+        self.assertEqual(self.ner.bert_hub_module_handle, old_bert_hub_module_handle)
+        self.assertEqual(self.ner.finetune_bert, old_finetune_bert)
         self.assertEqual(self.ner.max_epochs, old_max_epochs)
         self.assertEqual(self.ner.patience, old_patience)
         self.assertAlmostEqual(self.ner.gpu_memory_frac, old_gpu_memory_frac)
@@ -1310,15 +1496,17 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(self.ner.random_seed, old_random_seed)
 
     def test_copy_positive01(self):
-        self.ner = ELMo_NER(random_seed=0, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(random_seed=0)
         self.another_ner = copy.copy(self.ner)
-        self.assertIsInstance(self.another_ner, ELMo_NER)
+        self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
+        self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.another_ner, 'clip_norm'))
+        self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
         self.assertTrue(hasattr(self.another_ner, 'patience'))
         self.assertTrue(hasattr(self.another_ner, 'random_seed'))
@@ -1327,10 +1515,12 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
+        self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
+        self.assertAlmostEqual(self.ner.clip_norm, self.another_ner.clip_norm)
+        self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
+        self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
         self.assertEqual(self.ner.patience, self.another_ner.patience)
         self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
@@ -1341,18 +1531,20 @@ class TestELMoNER(unittest.TestCase):
 
     def test_copy_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None)
         X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         self.ner.fit(X_train, y_train)
         self.another_ner = copy.copy(self.ner)
-        self.assertIsInstance(self.another_ner, ELMo_NER)
+        self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
+        self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.another_ner, 'clip_norm'))
+        self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
+        self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
         self.assertTrue(hasattr(self.another_ner, 'patience'))
         self.assertTrue(hasattr(self.another_ner, 'random_seed'))
@@ -1365,16 +1557,19 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'logits_'))
         self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
         self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
-        self.assertTrue(hasattr(self.another_ner, 'input_tokens_'))
-        self.assertTrue(hasattr(self.another_ner, 'sequence_lengths_'))
+        self.assertTrue(hasattr(self.another_ner, 'input_ids_'))
+        self.assertTrue(hasattr(self.another_ner, 'input_mask_'))
+        self.assertTrue(hasattr(self.another_ner, 'segment_ids_'))
         self.assertTrue(hasattr(self.another_ner, 'additional_features_'))
         self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
+        self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
+        self.assertAlmostEqual(self.ner.clip_norm, self.another_ner.clip_norm)
+        self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
+        self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
         self.assertEqual(self.ner.patience, self.another_ner.patience)
         self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
@@ -1387,8 +1582,9 @@ class TestELMoNER(unittest.TestCase):
         self.assertIs(self.ner.logits_, self.another_ner.logits_)
         self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
         self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
-        self.assertIs(self.ner.input_tokens_, self.another_ner.input_tokens_)
-        self.assertIs(self.ner.sequence_lengths_, self.another_ner.sequence_lengths_)
+        self.assertIs(self.ner.input_ids_, self.another_ner.input_ids_)
+        self.assertIs(self.ner.input_mask_, self.another_ner.input_mask_)
+        self.assertIs(self.ner.segment_ids_, self.another_ner.segment_ids_)
         self.assertIs(self.ner.additional_features_, self.another_ner.additional_features_)
         self.assertIs(self.ner.y_ph_, self.another_ner.y_ph_)
         self.assertIs(self.ner.sess_, self.another_ner.sess_)
@@ -1404,41 +1600,71 @@ class TestELMoNER(unittest.TestCase):
             'ORG': [(31, 37), (90, 95)],
             'PERSON': [(49, 59), (61, 70), (95, 99)]
         }
-        calc_entities = ELMo_NER.calculate_bounds_of_named_entities(bounds_of_tokens, classes_list, labels_of_tokens)
+        calc_entities = BERT_NER.calculate_bounds_of_named_entities(bounds_of_tokens, classes_list, labels_of_tokens)
         self.assertIsInstance(calc_entities, dict)
         self.assertEqual(set(true_entities.keys()), set(calc_entities.keys()))
         for entity_type in true_entities:
             self.assertEqual(true_entities[entity_type], calc_entities[entity_type])
 
     def test_get_shape_of_string_positive01(self):
-        src = 'уже'
+        src = '##чники'
         dst = 'a'
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive02(self):
-        src = 'К'
-        dst = 'A'
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        src = 'уже'
+        dst = 'a'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive03(self):
-        src = 'Однако'
-        dst = 'Aa'
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        src = 'К'
+        dst = 'A'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive04(self):
-        src = '66–67'
-        dst = 'D-D'
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        src = 'Однако'
+        dst = 'Aa'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive05(self):
-        src = '…'
-        dst = 'U'
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        src = '66–67'
+        dst = 'D-D'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+
+    def test_get_shape_of_string_positive06(self):
+        src = '[UNK]'
+        dst = '[UNK]'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_shape_of_string_negative(self):
         src = ''
         dst = ''
-        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+
+    def test_get_shape_of_string_positive07(self):
+        src = '…'
+        dst = 'U'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+
+    def test_get_subword_ID_positive01(self):
+        src = '##чники'
+        dst = 2
+        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+
+    def test_get_subword_ID_positive02(self):
+        src = 'Однако'
+        dst = 3
+        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+
+    def test_get_subword_ID_positive03(self):
+        src = '[CLS]'
+        dst = 0
+        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+
+    def test_get_subword_ID_positive04(self):
+        src = '[SEP]'
+        dst = 1
+        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
 
 
 if __name__ == '__main__':

@@ -11,12 +11,12 @@ from nltk.tokenize.nist import NISTTokenizer
 
 
 try:
-    from elmo_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from elmo_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
+    from deep_ner.utils import factrueval2016_to_json, load_dataset
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from elmo_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from elmo_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
+    from deep_ner.utils import factrueval2016_to_json, load_dataset
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
