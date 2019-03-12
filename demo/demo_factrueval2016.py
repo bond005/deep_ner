@@ -7,6 +7,8 @@ import pickle
 import sys
 import tempfile
 
+from nltk.tokenize.nist import NISTTokenizer
+
 
 try:
     from elmo_ner.elmo_ner import ELMo_NER, elmo_ner_logger
@@ -17,8 +19,8 @@ except:
     from elmo_ner.utils import factrueval2016_to_json, load_dataset
 
 
-def train(factrueval2016_devset_dir: str, elmo_will_be_tuned: bool, max_epochs: int, batch_size: int,
-          gpu_memory_frac: float, model_name: str) -> ELMo_NER:
+def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
+          batch_size: int, lr: float, gpu_memory_frac: float, model_name: str) -> ELMo_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -28,7 +30,7 @@ def train(factrueval2016_devset_dir: str, elmo_will_be_tuned: bool, max_epochs: 
     else:
         temp_json_name = tempfile.NamedTemporaryFile(mode='w').name
         try:
-            factrueval2016_to_json(factrueval2016_devset_dir, temp_json_name)
+            factrueval2016_to_json(factrueval2016_devset_dir, temp_json_name, split_by_paragraphs)
             X, y = load_dataset(temp_json_name)
         finally:
             if os.path.isfile(temp_json_name):
@@ -36,11 +38,22 @@ def train(factrueval2016_devset_dir: str, elmo_will_be_tuned: bool, max_epochs: 
         print('Data for training have been loaded...')
         print('Number of samples is {0}.'.format(len(y)))
         print('')
+        max_number_of_tokens = 0
+        tokenizer = NISTTokenizer()
+        for cur in X:
+            n_tokens = len(tokenizer.international_tokenize(cur))
+            if n_tokens > max_number_of_tokens:
+                max_number_of_tokens = n_tokens
+        del tokenizer
+        print('Maximal number of tokens is {0}.'.format(max_number_of_tokens))
+        n_tokens = 2
+        while n_tokens < max_number_of_tokens:
+            n_tokens *= 2
         elmo_hub_module_handle = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
         recognizer = ELMo_NER(
-            finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=1e-4,
-            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.1, max_epochs=max_epochs, patience=3,
-            gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=1e-5 if elmo_will_be_tuned else 1e-3
+            finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=1e-3, max_seq_length=n_tokens,
+            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.1, max_epochs=max_epochs, patience=5,
+            gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr
         )
         recognizer.fit(X, y)
         with open(model_name, 'wb') as fp:
@@ -51,10 +64,10 @@ def train(factrueval2016_devset_dir: str, elmo_will_be_tuned: bool, max_epochs: 
     return recognizer
 
 
-def recognize(factrueval2016_testset_dir: str, recognizer: ELMo_NER, results_dir: str):
+def recognize(factrueval2016_testset_dir: str, split_by_paragraphs: bool, recognizer: ELMo_NER, results_dir: str):
     temp_json_name = tempfile.NamedTemporaryFile(mode='w').name
     try:
-        factrueval2016_to_json(factrueval2016_testset_dir, temp_json_name)
+        factrueval2016_to_json(factrueval2016_testset_dir, temp_json_name, split_by_paragraphs)
         with codecs.open(temp_json_name, mode='r', encoding='utf-8', errors='ignore') as fp:
             data_for_testing = json.load(fp)
         _, true_entities = load_dataset(temp_json_name)
@@ -120,21 +133,25 @@ def main():
                         help='Size of mini-batch.')
     parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
                         help='Maximal number of training epochs.')
-    parser.add_argument('--lstm', dest='lstm_units', type=int, required=False, default=None,
-                        help='The LSTM layer size (if it is not specified, than the LSTM layer is not used).')
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
                         help='Allocable part of the GPU memory for the NER model.')
     parser.add_argument('--finetune_elmo', dest='finetune_elmo', required=False, action='store_true',
                         default=False, help='Will be the ELMo and CRF finetuned together? Or the ELMo will be frozen?')
+    parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-3, help='Learning rate.')
+    parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
+                        default='sentence', help='Text unit: sentence or paragraph.')
     args = parser.parse_args()
 
+    if args.text_unit not in {'sentence', 'paragraph'}:
+        raise ValueError('`{0}` is wrong value for the `text_unit` parameter!'.format(args.text_unit))
     devset_dir_name = os.path.join(os.path.normpath(args.data_name), 'devset')
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, elmo_will_be_tuned=args.finetune_elmo,
                        max_epochs=args.max_epochs, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
-                       model_name=os.path.normpath(args.model_name))
+                       model_name=os.path.normpath(args.model_name), lr=args.lr,
+                       split_by_paragraphs=(args.text_unit == 'paragraph'))
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
-              results_dir=os.path.normpath(args.result_name))
+              results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ import os
 from typing import Dict, Tuple, List
 
 
-def load_tokens_from_factrueval2016(text_file_name: str, tokens_file_name: str) -> \
+def load_tokens_from_factrueval2016_by_paragraphs(text_file_name: str, tokens_file_name: str) -> \
         Tuple[Dict[int, Tuple[int, int, str]], str, tuple]:
     source_text = ''
     start_pos = 0
@@ -100,6 +100,68 @@ def load_tokens_from_factrueval2016(text_file_name: str, tokens_file_name: str) 
         else:
             bounds_of_paragraphs_after_strip.append(cur_bounds)
     return tokens_and_their_bounds, source_text, tuple(bounds_of_paragraphs_after_strip)
+
+
+def load_tokens_from_factrueval2016_by_sentences(tokens_file_name: str) -> \
+        Tuple[Dict[int, Tuple[int, int, str]], str, tuple]:
+    source_text = ''
+    tokens_and_their_bounds = dict()
+    line_idx = 1
+    bounds_of_sentences = []
+    sentence_start = -1
+    sentence_end = -1
+    with codecs.open(tokens_file_name, mode='r', encoding='utf-8', errors='ignore') as fp:
+        cur_line = fp.readline()
+        while len(cur_line) > 0:
+            prep_line = cur_line.strip()
+            if len(prep_line) > 0:
+                err_msg = 'File `{0}`: line {1} is wrong!'.format(tokens_file_name, line_idx)
+                parts_of_line = prep_line.split()
+                if len(parts_of_line) != 4:
+                    raise ValueError(err_msg)
+                try:
+                    token_id = int(parts_of_line[0])
+                except:
+                    token_id = -1
+                if token_id < 0:
+                    raise ValueError(err_msg)
+                try:
+                    token_start = int(parts_of_line[1])
+                except:
+                    token_start = -1
+                if token_start < len(source_text):
+                    raise ValueError(err_msg)
+                try:
+                    token_len = int(parts_of_line[2])
+                except:
+                    token_len = -1
+                if token_len < 0:
+                    raise ValueError(err_msg)
+                token_text = parts_of_line[3].strip()
+                if len(token_text) != token_len:
+                    raise ValueError(err_msg)
+                if token_id in tokens_and_their_bounds:
+                    raise ValueError(err_msg)
+                while len(source_text) < token_start:
+                    source_text += ' '
+                source_text += token_text
+                tokens_and_their_bounds[token_id] = (
+                    token_start, token_start + token_len,
+                    token_text
+                )
+                if sentence_start < 0:
+                    sentence_start = token_start
+                sentence_end = token_start + token_len
+            else:
+                if (sentence_start >= 0) and (sentence_end >= 0):
+                    bounds_of_sentences.append((sentence_start, sentence_end))
+                sentence_start = -1
+                sentence_end = -1
+            cur_line = fp.readline()
+            line_idx += 1
+    if (sentence_start >= 0) and (sentence_end >= 0):
+        bounds_of_sentences.append((sentence_start, sentence_end))
+    return tokens_and_their_bounds, source_text, tuple(bounds_of_sentences)
 
 
 def load_spans_from_factrueval2016(spans_file_name: str,
@@ -214,7 +276,7 @@ def load_objects_from_factrueval2016(objects_file_name: str,
     return objects
 
 
-def factrueval2016_to_json(src_dir_name: str, dst_json_name: str):
+def factrueval2016_to_json(src_dir_name: str, dst_json_name: str, split_by_paragraphs: bool=True):
     factrueval_files = dict()
     for cur_file_name in os.listdir(src_dir_name):
         if cur_file_name.endswith('.objects'):
@@ -241,8 +303,14 @@ def factrueval2016_to_json(src_dir_name: str, dst_json_name: str):
         factrueval_files[base_name] = sorted(factrueval_files[base_name])
     train_data = []
     for base_name in sorted(list(factrueval_files.keys())):
-        tokens, text, paragraphs = load_tokens_from_factrueval2016(os.path.join(src_dir_name, base_name + '.txt'),
-                                                                   os.path.join(src_dir_name, base_name + '.tokens'))
+        if split_by_paragraphs:
+            tokens, text, paragraphs = load_tokens_from_factrueval2016_by_paragraphs(
+                os.path.join(src_dir_name, base_name + '.txt'), os.path.join(src_dir_name, base_name + '.tokens')
+            )
+        else:
+            tokens, text, paragraphs = load_tokens_from_factrueval2016_by_sentences(
+                os.path.join(src_dir_name, base_name + '.tokens')
+            )
         spans = load_spans_from_factrueval2016(os.path.join(src_dir_name, base_name + '.spans'), tokens)
         objects = load_objects_from_factrueval2016(os.path.join(src_dir_name, base_name + '.objects'), spans)
         named_entities = dict()
@@ -301,8 +369,9 @@ def recognized_factrueval2016_to_json(gold_dir_name: str, recognized_dir_name: s
             raise ValueError('File `{0}` is not found!'.format(os.path.join(recognized_dir_name, base_name + '.task1')))
     train_data = []
     for base_name in sorted(list(factrueval_files.keys())):
-        tokens, text, paragraphs = load_tokens_from_factrueval2016(os.path.join(gold_dir_name, base_name + '.txt'),
-                                                                   os.path.join(gold_dir_name, base_name + '.tokens'))
+        tokens, text, paragraphs = load_tokens_from_factrueval2016_by_paragraphs(
+            os.path.join(gold_dir_name, base_name + '.txt'), os.path.join(gold_dir_name, base_name + '.tokens')
+        )
         named_entities = dict()
         with codecs.open(os.path.join(recognized_dir_name, base_name + '.task1'), mode='r', encoding='utf-8',
                          errors='ignore') as fp:
