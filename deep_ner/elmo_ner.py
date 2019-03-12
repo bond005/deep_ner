@@ -435,14 +435,16 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             shapes_vocabulary_ = tuple(shapes_vocabulary_)
         else:
             shapes_vocabulary_ = shapes_vocabulary
-        shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_)), dtype=np.float32)
+        shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_) + 3), dtype=np.float32)
         for sample_idx in range(n_samples):
             for token_idx, cur_shape in enumerate(shapes[sample_idx]):
                 if cur_shape in shapes_vocabulary_:
                     shape_ID = shapes_vocabulary_.index(cur_shape)
                 else:
-                    shape_ID = len(shapes_vocabulary_) - 1
+                    shape_ID = len(shapes_vocabulary_)
                 shapes_[sample_idx][token_idx][shape_ID] = 1.0
+            shapes_[sample_idx][0][len(shapes_vocabulary_) + 1] = 1.0
+            shapes_[sample_idx][len(shapes[sample_idx])][len(shapes_vocabulary_) + 2] = 1.0
         del shapes
         return [np.array(tokens, dtype=np.str), np.array(lenghts, dtype=np.int32), shapes_], \
                (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
