@@ -398,6 +398,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 ndiff = len(tokenized_text) - self.max_seq_length
                 if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
+                    shapes_of_text = shapes_of_text[:self.max_seq_length]
                 elif ndiff < 0:
                     tokenized_text += ['' for _ in range(-ndiff)]
                 tokens.append(tokenized_text)
@@ -421,6 +422,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 ndiff = len(tokenized_text) - self.max_seq_length
                 if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
+                    shapes_of_text = shapes_of_text[:self.max_seq_length]
                 elif ndiff < 0:
                     tokenized_text += ['' for _ in range(-ndiff)]
                 tokens.append(tokenized_text)
