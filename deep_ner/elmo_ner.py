@@ -110,6 +110,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
         self.tokenizer_ = NISTTokenizer()
         sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
+        sequence_output = tf.reshape(sequence_output, [self.batch_size, self.max_seq_length, 1024])
         if self.verbose:
             elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
         X_tokenized, y_tokenized, self.shapes_list_ = self.tokenize_all(X, y)
@@ -122,25 +123,14 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         )
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         if self.finetune_elmo:
-            with tf.variable_scope("crf_layer"):
-                W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
-                                    initializer=he_init)
-                b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
-                sequence_output = tf.concat([tf.reshape(sequence_output, [-1, 1024]), self.additional_features_],
-                                            axis=-1)
-                pred = tf.matmul(sequence_output, W) + b
-                self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
+            self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
+                                           n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                           kernel_initializer=he_init, name='outputs_of_NER')
         else:
             sequence_output_stop = tf.stop_gradient(sequence_output)
-            with tf.variable_scope("crf_layer"):
-                W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
-                                    initializer=he_init)
-                b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
-                sequence_output_stop = tf.concat(
-                    [tf.reshape(sequence_output_stop, [-1, 1024]), self.additional_features_], axis=-1
-                )
-                pred = tf.matmul(sequence_output_stop, W) + b
-                self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
+            self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
+                                           n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                           kernel_initializer=he_init, name='outputs_of_NER')
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
                                                                               self.sequence_lengths_)
         loss_tensor = -log_likelihood
@@ -622,6 +612,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 )
                 elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
                 sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
+                sequence_output = tf.reshape(sequence_output, [self.batch_size, self.max_seq_length, 1024])
                 if self.verbose:
                     elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
                 n_tags = len(self.classes_list_) * 2 + 1
@@ -631,26 +622,15 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 )
                 he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
                 if self.finetune_elmo:
-                    with tf.variable_scope("crf_layer"):
-                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
-                                            initializer=he_init)
-                        b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
-                        sequence_output = tf.concat(
-                            [tf.reshape(sequence_output, [-1, 1024]), self.additional_features_],
-                            axis=-1)
-                        pred = tf.matmul(sequence_output, W) + b
-                        self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
+                    self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
+                                                   n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                                   kernel_initializer=he_init, name='outputs_of_NER')
                 else:
                     sequence_output_stop = tf.stop_gradient(sequence_output)
-                    with tf.variable_scope("crf_layer"):
-                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
-                                            initializer=he_init)
-                        b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
-                        sequence_output_stop = tf.concat(
-                            [tf.reshape(sequence_output_stop, [-1, 1024]), self.additional_features_], axis=-1
-                        )
-                        pred = tf.matmul(sequence_output_stop, W) + b
-                        self.logits_ = tf.reshape(pred, [self.batch_size, self.max_seq_length, n_tags])
+                    self.logits_ = tf.layers.dense(
+                        tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
+                        n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                        kernel_initializer=he_init, name='outputs_of_NER')
                 log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
                                                                                       self.sequence_lengths_)
                 loss_tensor = -log_likelihood
