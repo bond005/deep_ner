@@ -117,13 +117,14 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
         n_tags = len(self.classes_list_) * 2 + 1
         self.additional_features_ = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
+            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
             name='additional_features'
         )
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         if self.finetune_elmo:
             with tf.variable_scope("crf_layer"):
-                W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
+                                    initializer=he_init)
                 b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
                 sequence_output = tf.concat([tf.reshape(sequence_output, [-1, 1024]), self.additional_features_],
                                             axis=-1)
@@ -132,7 +133,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             sequence_output_stop = tf.stop_gradient(sequence_output)
             with tf.variable_scope("crf_layer"):
-                W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
+                                    initializer=he_init)
                 b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
                 sequence_output_stop = tf.concat(
                     [tf.reshape(sequence_output_stop, [-1, 1024]), self.additional_features_], axis=-1
@@ -444,7 +446,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     shape_ID = len(shapes_vocabulary_)
                 shapes_[sample_idx][token_idx][shape_ID] = 1.0
             shapes_[sample_idx][0][len(shapes_vocabulary_) + 1] = 1.0
-            shapes_[sample_idx][len(shapes[sample_idx])][len(shapes_vocabulary_) + 2] = 1.0
+            shapes_[sample_idx][len(shapes[sample_idx]) - 1][len(shapes_vocabulary_) + 2] = 1.0
         del shapes
         return [np.array(tokens, dtype=np.str), np.array(lenghts, dtype=np.int32), shapes_], \
                (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
@@ -622,13 +624,14 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
                 n_tags = len(self.classes_list_) * 2 + 1
                 self.additional_features_ = tf.placeholder(
-                    shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
+                    shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
                     name='additional_features'
                 )
                 he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
                 if self.finetune_elmo:
                     with tf.variable_scope("crf_layer"):
-                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
+                                            initializer=he_init)
                         b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
                         sequence_output = tf.concat(
                             [tf.reshape(sequence_output, [-1, 1024]), self.additional_features_],
@@ -638,7 +641,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 else:
                     sequence_output_stop = tf.stop_gradient(sequence_output)
                     with tf.variable_scope("crf_layer"):
-                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024, n_tags], initializer=he_init)
+                        W = tf.get_variable("W", dtype=tf.float32, shape=[1024 + len(self.shapes_list_) + 3, n_tags],
+                                            initializer=he_init)
                         b = tf.get_variable("b", shape=[n_tags], dtype=tf.float32, initializer=tf.zeros_initializer())
                         sequence_output_stop = tf.concat(
                             [tf.reshape(sequence_output_stop, [-1, 1024]), self.additional_features_], axis=-1
