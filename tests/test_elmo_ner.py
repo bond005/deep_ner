@@ -989,6 +989,683 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(true_fp, fp)
         self.assertEqual(true_fn, fn)
 
+    def test_calculate_prediction_quality(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
+        self.assertEqual(X_true, X_pred)
+        f1, precision, recall = ELMo_NER.calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
+        self.assertIsInstance(f1, float)
+        self.assertIsInstance(precision, float)
+        self.assertIsInstance(recall, float)
+        self.assertAlmostEqual(f1, 0.842037, places=3)
+        self.assertAlmostEqual(precision, 0.908352, places=3)
+        self.assertAlmostEqual(recall, 0.784746, places=3)
+
+    def test_fit_positive01(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        res = self.ner.fit(X_train, y_train)
+        self.assertIsInstance(res, ELMo_NER)
+        self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lr'))
+        self.assertTrue(hasattr(res, 'l2_reg'))
+        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'max_epochs'))
+        self.assertTrue(hasattr(res, 'patience'))
+        self.assertTrue(hasattr(res, 'random_seed'))
+        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(res, 'max_seq_length'))
+        self.assertTrue(hasattr(res, 'validation_fraction'))
+        self.assertTrue(hasattr(res, 'verbose'))
+        self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lr, float)
+        self.assertIsInstance(res.l2_reg, float)
+        self.assertIsInstance(res.elmo_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.max_epochs, int)
+        self.assertIsInstance(res.patience, int)
+        self.assertIsInstance(res.random_seed, int)
+        self.assertIsInstance(res.gpu_memory_frac, float)
+        self.assertIsInstance(res.max_seq_length, int)
+        self.assertIsInstance(res.validation_fraction, float)
+        self.assertIsInstance(res.verbose, bool)
+        self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'logits_'))
+        self.assertTrue(hasattr(res, 'transition_params_'))
+        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'input_tokens_'))
+        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'sess_'))
+        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+
+    def test_fit_positive02(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        res = self.ner.fit(X_train, y_train)
+        self.assertIsInstance(res, ELMo_NER)
+        self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lr'))
+        self.assertTrue(hasattr(res, 'l2_reg'))
+        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'max_epochs'))
+        self.assertTrue(hasattr(res, 'patience'))
+        self.assertTrue(hasattr(res, 'random_seed'))
+        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(res, 'max_seq_length'))
+        self.assertTrue(hasattr(res, 'validation_fraction'))
+        self.assertTrue(hasattr(res, 'verbose'))
+        self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lr, float)
+        self.assertIsInstance(res.l2_reg, float)
+        self.assertIsInstance(res.elmo_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.max_epochs, int)
+        self.assertIsInstance(res.patience, int)
+        self.assertIsInstance(res.random_seed, int)
+        self.assertIsInstance(res.gpu_memory_frac, float)
+        self.assertIsInstance(res.max_seq_length, int)
+        self.assertIsInstance(res.validation_fraction, float)
+        self.assertIsInstance(res.verbose, bool)
+        self.assertEqual(res.random_seed, 42)
+        self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'logits_'))
+        self.assertTrue(hasattr(res, 'transition_params_'))
+        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'input_tokens_'))
+        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'sess_'))
+        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+
+    def test_fit_positive03(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        res = self.ner.fit(X_train, y_train)
+        self.assertIsInstance(res, ELMo_NER)
+        self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lr'))
+        self.assertTrue(hasattr(res, 'l2_reg'))
+        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'max_epochs'))
+        self.assertTrue(hasattr(res, 'patience'))
+        self.assertTrue(hasattr(res, 'random_seed'))
+        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(res, 'max_seq_length'))
+        self.assertTrue(hasattr(res, 'validation_fraction'))
+        self.assertTrue(hasattr(res, 'verbose'))
+        self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lr, float)
+        self.assertIsInstance(res.l2_reg, float)
+        self.assertIsInstance(res.elmo_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.max_epochs, int)
+        self.assertIsInstance(res.patience, int)
+        self.assertIsInstance(res.random_seed, int)
+        self.assertIsInstance(res.gpu_memory_frac, float)
+        self.assertIsInstance(res.max_seq_length, int)
+        self.assertIsInstance(res.validation_fraction, float)
+        self.assertIsInstance(res.verbose, bool)
+        self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'logits_'))
+        self.assertTrue(hasattr(res, 'transition_params_'))
+        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'input_tokens_'))
+        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'sess_'))
+        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+
+    def test_fit_predict(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        res = self.ner.fit(X_train, y_train)
+        self.assertIsInstance(res, ELMo_NER)
+        self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lr'))
+        self.assertTrue(hasattr(res, 'l2_reg'))
+        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'max_epochs'))
+        self.assertTrue(hasattr(res, 'patience'))
+        self.assertTrue(hasattr(res, 'random_seed'))
+        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(res, 'max_seq_length'))
+        self.assertTrue(hasattr(res, 'validation_fraction'))
+        self.assertTrue(hasattr(res, 'verbose'))
+        self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lr, float)
+        self.assertIsInstance(res.l2_reg, float)
+        self.assertIsInstance(res.elmo_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.max_epochs, int)
+        self.assertIsInstance(res.patience, int)
+        self.assertIsInstance(res.random_seed, int)
+        self.assertIsInstance(res.gpu_memory_frac, float)
+        self.assertIsInstance(res.max_seq_length, int)
+        self.assertIsInstance(res.validation_fraction, float)
+        self.assertIsInstance(res.verbose, bool)
+        self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'logits_'))
+        self.assertTrue(hasattr(res, 'transition_params_'))
+        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'input_tokens_'))
+        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'sess_'))
+        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        y_pred = res.predict(X_train)
+        self.assertIsInstance(y_pred, list)
+        self.assertEqual(len(X_train), len(y_pred))
+        for sample_idx in range(len(y_pred)):
+            self.assertIsInstance(y_pred[sample_idx], dict)
+        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred, res.classes_list_)
+        self.assertGreater(f1, 0.0)
+        self.assertGreater(precision, 0.0)
+        self.assertGreater(recall, 0.0)
+
+    def test_predict_negative(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, random_seed=None,
+                            elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        with self.assertRaises(NotFittedError):
+            _ = self.ner.predict(X_train)
+
+    def test_serialize_positive01(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        res = self.ner.fit(X_train, y_train)
+        self.assertIsInstance(res, ELMo_NER)
+        self.assertTrue(hasattr(res, 'batch_size'))
+        self.assertTrue(hasattr(res, 'lr'))
+        self.assertTrue(hasattr(res, 'l2_reg'))
+        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(res, 'finetune_elmo'))
+        self.assertTrue(hasattr(res, 'max_epochs'))
+        self.assertTrue(hasattr(res, 'patience'))
+        self.assertTrue(hasattr(res, 'random_seed'))
+        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(res, 'max_seq_length'))
+        self.assertTrue(hasattr(res, 'validation_fraction'))
+        self.assertTrue(hasattr(res, 'verbose'))
+        self.assertIsInstance(res.batch_size, int)
+        self.assertIsInstance(res.lr, float)
+        self.assertIsInstance(res.l2_reg, float)
+        self.assertIsInstance(res.elmo_hub_module_handle, str)
+        self.assertIsInstance(res.finetune_elmo, bool)
+        self.assertIsInstance(res.max_epochs, int)
+        self.assertIsInstance(res.patience, int)
+        self.assertIsInstance(res.random_seed, int)
+        self.assertIsInstance(res.gpu_memory_frac, float)
+        self.assertIsInstance(res.max_seq_length, int)
+        self.assertIsInstance(res.validation_fraction, float)
+        self.assertIsInstance(res.verbose, bool)
+        self.assertTrue(hasattr(res, 'classes_list_'))
+        self.assertTrue(hasattr(res, 'logits_'))
+        self.assertTrue(hasattr(res, 'transition_params_'))
+        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'input_tokens_'))
+        self.assertTrue(hasattr(res, 'sequence_lengths_'))
+        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'sess_'))
+        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        y_pred1 = res.predict(X_train)
+        self.assertIsInstance(y_pred1, list)
+        self.assertEqual(len(X_train), len(y_pred1))
+        for sample_idx in range(len(y_pred1)):
+            self.assertIsInstance(y_pred1[sample_idx], dict)
+        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
+        self.assertGreater(f1, 0.0)
+        self.assertGreater(precision, 0.0)
+        self.assertGreater(recall, 0.0)
+        self.temp_file_name = tempfile.NamedTemporaryFile(mode='w').name
+        with open(self.temp_file_name, mode='wb') as fp:
+            pickle.dump(res, fp)
+        del res, self.ner
+        gc.collect()
+        with open(self.temp_file_name, mode='rb') as fp:
+            self.ner = pickle.load(fp)
+        y_pred2 = self.ner.predict(X_train)
+        self.assertIsInstance(y_pred2, list)
+        self.assertEqual(len(y_pred2), len(y_pred2))
+        for sample_idx in range(len(y_pred2)):
+            self.assertIsInstance(y_pred2[sample_idx], dict)
+            self.assertEqual(set(y_pred1[sample_idx]), set(y_pred2[sample_idx]))
+            for ne_type in y_pred1[sample_idx]:
+                self.assertEqual(y_pred1[sample_idx][ne_type], y_pred2[sample_idx][ne_type])
+
+    def test_serialize_positive02(self):
+        self.ner = ELMo_NER(random_seed=31, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        old_batch_size = self.ner.batch_size
+        old_lr = self.ner.lr
+        old_l2_reg = self.ner.l2_reg
+        old_elmo_hub_module_handle = self.ner.elmo_hub_module_handle
+        old_finetune_elmo = self.ner.finetune_elmo
+        old_max_epochs = self.ner.max_epochs
+        old_patience = self.ner.patience
+        old_random_seed = self.ner.random_seed
+        old_gpu_memory_frac = self.ner.gpu_memory_frac
+        old_max_seq_length = self.ner.max_seq_length
+        old_validation_fraction = self.ner.validation_fraction
+        old_verbose = self.ner.verbose
+        self.temp_file_name = tempfile.NamedTemporaryFile().name
+        with open(self.temp_file_name, mode='wb') as fp:
+            pickle.dump(self.ner, fp)
+        del self.ner
+        gc.collect()
+        with open(self.temp_file_name, mode='rb') as fp:
+            self.ner = pickle.load(fp)
+        self.assertIsInstance(self.ner, ELMo_NER)
+        self.assertTrue(hasattr(self.ner, 'batch_size'))
+        self.assertTrue(hasattr(self.ner, 'lr'))
+        self.assertTrue(hasattr(self.ner, 'l2_reg'))
+        self.assertTrue(hasattr(self.ner, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(self.ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.ner, 'max_epochs'))
+        self.assertTrue(hasattr(self.ner, 'patience'))
+        self.assertTrue(hasattr(self.ner, 'random_seed'))
+        self.assertTrue(hasattr(self.ner, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(self.ner, 'max_seq_length'))
+        self.assertTrue(hasattr(self.ner, 'validation_fraction'))
+        self.assertTrue(hasattr(self.ner, 'verbose'))
+        self.assertEqual(self.ner.batch_size, old_batch_size)
+        self.assertAlmostEqual(self.ner.lr, old_lr)
+        self.assertAlmostEqual(self.ner.l2_reg, old_l2_reg)
+        self.assertEqual(self.ner.elmo_hub_module_handle, old_elmo_hub_module_handle)
+        self.assertEqual(self.ner.finetune_elmo, old_finetune_elmo)
+        self.assertEqual(self.ner.max_epochs, old_max_epochs)
+        self.assertEqual(self.ner.patience, old_patience)
+        self.assertAlmostEqual(self.ner.gpu_memory_frac, old_gpu_memory_frac)
+        self.assertEqual(self.ner.max_seq_length, old_max_seq_length)
+        self.assertAlmostEqual(self.ner.validation_fraction, old_validation_fraction)
+        self.assertEqual(self.ner.verbose, old_verbose)
+        self.assertEqual(self.ner.random_seed, old_random_seed)
+
+    def test_copy_positive01(self):
+        self.ner = ELMo_NER(random_seed=0, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        self.another_ner = copy.copy(self.ner)
+        self.assertIsInstance(self.another_ner, ELMo_NER)
+        self.assertIsNot(self.ner, self.another_ner)
+        self.assertTrue(hasattr(self.another_ner, 'batch_size'))
+        self.assertTrue(hasattr(self.another_ner, 'lr'))
+        self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
+        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
+        self.assertTrue(hasattr(self.another_ner, 'patience'))
+        self.assertTrue(hasattr(self.another_ner, 'random_seed'))
+        self.assertTrue(hasattr(self.another_ner, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
+        self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
+        self.assertTrue(hasattr(self.another_ner, 'verbose'))
+        self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
+        self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
+        self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
+        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
+        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
+        self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
+        self.assertEqual(self.ner.patience, self.another_ner.patience)
+        self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
+        self.assertAlmostEqual(self.ner.gpu_memory_frac, self.another_ner.gpu_memory_frac)
+        self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
+        self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
+        self.assertEqual(self.ner.verbose, self.another_ner.verbose)
+
+    def test_copy_positive02(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
+        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        self.ner.fit(X_train, y_train)
+        self.another_ner = copy.copy(self.ner)
+        self.assertIsInstance(self.another_ner, ELMo_NER)
+        self.assertIsNot(self.ner, self.another_ner)
+        self.assertTrue(hasattr(self.another_ner, 'batch_size'))
+        self.assertTrue(hasattr(self.another_ner, 'lr'))
+        self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
+        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
+        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
+        self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
+        self.assertTrue(hasattr(self.another_ner, 'patience'))
+        self.assertTrue(hasattr(self.another_ner, 'random_seed'))
+        self.assertTrue(hasattr(self.another_ner, 'gpu_memory_frac'))
+        self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
+        self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
+        self.assertTrue(hasattr(self.another_ner, 'verbose'))
+        self.assertTrue(hasattr(self.another_ner, 'classes_list_'))
+        self.assertTrue(hasattr(self.another_ner, 'logits_'))
+        self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
+        self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
+        self.assertTrue(hasattr(self.another_ner, 'input_tokens_'))
+        self.assertTrue(hasattr(self.another_ner, 'sequence_lengths_'))
+        self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
+        self.assertTrue(hasattr(self.another_ner, 'sess_'))
+        self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
+        self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
+        self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
+        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
+        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
+        self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
+        self.assertEqual(self.ner.patience, self.another_ner.patience)
+        self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
+        self.assertAlmostEqual(self.ner.gpu_memory_frac, self.another_ner.gpu_memory_frac)
+        self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
+        self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
+        self.assertEqual(self.ner.verbose, self.another_ner.verbose)
+        self.assertIs(self.ner.classes_list_, self.another_ner.classes_list_)
+        self.assertIs(self.ner.logits_, self.another_ner.logits_)
+        self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
+        self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
+        self.assertIs(self.ner.input_tokens_, self.another_ner.input_tokens_)
+        self.assertIs(self.ner.sequence_lengths_, self.another_ner.sequence_lengths_)
+        self.assertIs(self.ner.y_ph_, self.another_ner.y_ph_)
+        self.assertIs(self.ner.sess_, self.another_ner.sess_)
+
+    def test_calculate_bounds_of_named_entities(self):
+        bounds_of_tokens = [(0, 2), (2, 5), (5, 8), (8, 10), (11, 16), (17, 20), (20, 22), (22, 26), (26, 27), (28, 31),
+                            (31, 34), (34, 37), (38, 48), (49, 52), (52, 54), (55, 57), (58, 59), (59, 61), (61, 63),
+                            (64, 70), (71, 83), (84, 87), (87, 90), (90, 93), (93, 95), (95, 98), (98, 99)]
+        classes_list = ('LOCATION', 'ORG', 'PERSON')
+        labels_of_tokens = [0, 0, 2, 1, 1, 2, 1, 0, 0, 0, 4, 3, 0, 6, 5, 5, 5, 0, 5, 5, 0, 2, 2, 3, 3, 6, 5]
+        true_entities = {
+            'LOCATION': [(5, 16), (17, 22), (84, 87), (87, 90)],
+            'ORG': [(31, 37), (90, 95)],
+            'PERSON': [(49, 59), (61, 70), (95, 99)]
+        }
+        calc_entities = ELMo_NER.calculate_bounds_of_named_entities(bounds_of_tokens, classes_list, labels_of_tokens)
+        self.assertIsInstance(calc_entities, dict)
+        self.assertEqual(set(true_entities.keys()), set(calc_entities.keys()))
+        for entity_type in true_entities:
+            self.assertEqual(true_entities[entity_type], calc_entities[entity_type])
+
+
+class TestUtils(unittest.TestCase):
+    def test_load_tokens_from_factrueval2016_by_sentences(self):
+        true_tokens = {
+            1802186: (0, 8, 'Назначен'),
+            1802187: (9, 16, 'куратор'),
+            1802188: (17, 30, 'строительства'),
+            1802189: (31, 41, 'российской'),
+            1802190: (42, 52, 'Кремниевой'),
+            1802191: (53, 59, 'долины'),
+            1802192: (61, 68, 'Дмитрий'),
+            1802193: (69, 77, 'Медведев'),
+            1802194: (78, 85, 'доверил'),
+            1802195: (86, 90, 'пост'),
+            1802196: (91, 103, 'руководителя'),
+            1802197: (104, 113, 'иннограда'),
+            1802198: (114, 125, 'миллиардеру'),
+            1802199: (126, 133, 'Виктору'),
+            1802200: (134, 146, 'Вексельбергу'),
+            1802201: (146, 147, '.'),
+            1802202: (149, 152, 'Всё'),
+            1802203: (153, 159, 'меньше'),
+            1802204: (160, 168, 'остаётся'),
+            1802205: (169, 179, 'нерешённых'),
+            1802206: (180, 188, 'вопросов'),
+            1802207: (188, 189, ','),
+            1802208: (190, 200, 'касающихся'),
+            1802209: (201, 211, 'возведения'),
+            1802210: (212, 213, 'в'),
+            1802211: (214, 220, 'России'),
+            1802212: (221, 232, 'уникального'),
+            1802213: (233, 239, 'Центра'),
+            1802214: (240, 242, 'по'),
+            1802215: (243, 253, 'разработке'),
+            1802216: (254, 255, 'и'),
+            1802217: (256, 272, 'коммерциализации'),
+            1802218: (273, 278, 'новых'),
+            1802219: (279, 289, 'технологий'),
+            1802220: (289, 290, '.'),
+            1802221: (291, 297, 'Власти'),
+            1802222: (298, 301, 'уже'),
+            1802223: (302, 304, 'не'),
+            1802224: (305, 311, 'только'),
+            1802225: (312, 319, 'выбрали'),
+            1802226: (320, 328, 'площадку'),
+            1802227: (329, 332, 'для'),
+            1802228: (333, 346, 'строительства'),
+            1802229: (347, 360, 'отечественной'),
+            1802230: (361, 371, 'Кремниевой'),
+            1802231: (372, 378, 'долины'),
+            1802232: (379, 380, 'в'),
+            1802233: (381, 393, 'подмосковном'),
+            1802234: (394, 402, 'Сколково'),
+            1802235: (402, 403, ','),
+            1802236: (404, 405, 'а'),
+            1802237: (406, 411, 'также'),
+            1802238: (412, 420, 'частично'),
+            1802239: (421, 429, 'одобрили'),
+            1802240: (430, 439, 'концепцию'),
+            1802241: (440, 450, 'наукограда'),
+            1802242: (450, 451, ','),
+            1802243: (452, 454, 'но'),
+            1802244: (455, 456, 'и'),
+            1802245: (457, 467, 'определили'),
+            1802246: (468, 476, 'куратора'),
+            1802247: (477, 484, 'большой'),
+            1802248: (485, 498, 'инновационной'),
+            1802249: (499, 506, 'стройки'),
+            1802250: (506, 507, '.'),
+            1802251: (508, 509, '«'),
+            1802252: (509, 513, 'Были'),
+            1802253: (514, 523, 'проведены'),
+            1802254: (524, 536, 'определённые'),
+            1802255: (537, 549, 'консультации'),
+            1802256: (550, 552, 'по'),
+            1802257: (553, 559, 'поводу'),
+            1802258: (560, 564, 'того'),
+            1802259: (564, 565, ','),
+            1802260: (566, 569, 'кто'),
+            1802261: (570, 579, 'конкретно'),
+            1802262: (580, 583, 'мог'),
+            1802263: (584, 586, 'бы'),
+            1802264: (587, 599, 'осуществлять'),
+            1802265: (600, 606, 'такого'),
+            1802266: (607, 611, 'рода'),
+            1802267: (612, 618, 'работу'),
+            1802268: (618, 619, '.'),
+            1802269: (620, 624, 'Мною'),
+            1802270: (625, 632, 'принято'),
+            1802271: (633, 640, 'решение'),
+            1802272: (640, 641, ','),
+            1802273: (642, 645, 'что'),
+            1802274: (646, 656, 'российскую'),
+            1802275: (657, 662, 'часть'),
+            1802276: (663, 667, 'этой'),
+            1802277: (668, 682, 'координирующей'),
+            1802278: (683, 692, 'структуры'),
+            1802279: (692, 693, ','),
+            1802280: (694, 701, 'которую'),
+            1802281: (702, 704, 'мы'),
+            1802282: (705, 713, 'создадим'),
+            1802283: (713, 714, ','),
+            1802284: (715, 724, 'возглавит'),
+            1802285: (725, 731, 'Виктор'),
+            1802286: (732, 742, 'Феликсович'),
+            1802287: (743, 754, 'Вексельберг'),
+            1802288: (754, 755, '»'),
+            1802289: (755, 756, ','),
+            1802290: (757, 758, '—'),
+            1802291: (759, 767, 'цитирует'),
+            1802292: (768, 769, '«'),
+            1802293: (769, 775, 'Взгляд'),
+            1802294: (775, 776, '»'),
+            1802295: (777, 784, 'Дмитрия'),
+            1802296: (785, 794, 'Медведева'),
+            1802297: (794, 795, '.')
+        }
+        true_text = 'Назначен куратор строительства российской Кремниевой долины  Дмитрий Медведев доверил пост ' \
+                    'руководителя иннограда миллиардеру Виктору Вексельбергу.  Всё меньше остаётся нерешённых ' \
+                    'вопросов, касающихся возведения в России уникального Центра по разработке и коммерциализации ' \
+                    'новых технологий. Власти уже не только выбрали площадку для строительства отечественной ' \
+                    'Кремниевой долины в подмосковном Сколково, а также частично одобрили концепцию наукограда, но и ' \
+                    'определили куратора большой инновационной стройки. «Были проведены определённые консультации по ' \
+                    'поводу того, кто конкретно мог бы осуществлять такого рода работу. Мною принято решение, что ' \
+                    'российскую часть этой координирующей структуры, которую мы создадим, возглавит Виктор Феликсович' \
+                    ' Вексельберг», — цитирует «Взгляд» Дмитрия Медведева.'
+        true_bounds_of_sentences = ((0, 59), (61, 147), (149, 290), (291, 507), (508, 619), (620, 756), (757, 795))
+        loaded_tokens, loaded_text, loaded_sentence_bounds = load_tokens_from_factrueval2016_by_sentences(
+            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.tokens')
+        )
+        self.assertIsInstance(loaded_tokens, dict)
+        self.assertEqual(set(true_tokens.keys()), set(loaded_tokens.keys()))
+        for token_ID in true_tokens:
+            self.assertEqual(true_tokens[token_ID], loaded_tokens[token_ID])
+        self.assertEqual(true_text, loaded_text)
+        self.assertEqual(true_bounds_of_sentences, loaded_sentence_bounds)
+
+    def test_load_tokens_from_factrueval2016_by_paragraphs(self):
+        true_tokens = {
+            1802186: (0, 8, 'Назначен'),
+            1802187: (9, 16, 'куратор'),
+            1802188: (17, 30, 'строительства'),
+            1802189: (31, 41, 'российской'),
+            1802190: (42, 52, 'Кремниевой'),
+            1802191: (53, 59, 'долины'),
+            1802192: (61, 68, 'Дмитрий'),
+            1802193: (69, 77, 'Медведев'),
+            1802194: (78, 85, 'доверил'),
+            1802195: (86, 90, 'пост'),
+            1802196: (91, 103, 'руководителя'),
+            1802197: (104, 113, 'иннограда'),
+            1802198: (114, 125, 'миллиардеру'),
+            1802199: (126, 133, 'Виктору'),
+            1802200: (134, 146, 'Вексельбергу'),
+            1802201: (146, 147, '.'),
+            1802202: (149, 152, 'Всё'),
+            1802203: (153, 159, 'меньше'),
+            1802204: (160, 168, 'остаётся'),
+            1802205: (169, 179, 'нерешённых'),
+            1802206: (180, 188, 'вопросов'),
+            1802207: (188, 189, ','),
+            1802208: (190, 200, 'касающихся'),
+            1802209: (201, 211, 'возведения'),
+            1802210: (212, 213, 'в'),
+            1802211: (214, 220, 'России'),
+            1802212: (221, 232, 'уникального'),
+            1802213: (233, 239, 'Центра'),
+            1802214: (240, 242, 'по'),
+            1802215: (243, 253, 'разработке'),
+            1802216: (254, 255, 'и'),
+            1802217: (256, 272, 'коммерциализации'),
+            1802218: (273, 278, 'новых'),
+            1802219: (279, 289, 'технологий'),
+            1802220: (289, 290, '.'),
+            1802221: (291, 297, 'Власти'),
+            1802222: (298, 301, 'уже'),
+            1802223: (302, 304, 'не'),
+            1802224: (305, 311, 'только'),
+            1802225: (312, 319, 'выбрали'),
+            1802226: (320, 328, 'площадку'),
+            1802227: (329, 332, 'для'),
+            1802228: (333, 346, 'строительства'),
+            1802229: (347, 360, 'отечественной'),
+            1802230: (361, 371, 'Кремниевой'),
+            1802231: (372, 378, 'долины'),
+            1802232: (379, 380, 'в'),
+            1802233: (381, 393, 'подмосковном'),
+            1802234: (394, 402, 'Сколково'),
+            1802235: (402, 403, ','),
+            1802236: (404, 405, 'а'),
+            1802237: (406, 411, 'также'),
+            1802238: (412, 420, 'частично'),
+            1802239: (421, 429, 'одобрили'),
+            1802240: (430, 439, 'концепцию'),
+            1802241: (440, 450, 'наукограда'),
+            1802242: (450, 451, ','),
+            1802243: (452, 454, 'но'),
+            1802244: (455, 456, 'и'),
+            1802245: (457, 467, 'определили'),
+            1802246: (468, 476, 'куратора'),
+            1802247: (477, 484, 'большой'),
+            1802248: (485, 498, 'инновационной'),
+            1802249: (499, 506, 'стройки'),
+            1802250: (506, 507, '.'),
+            1802251: (508, 509, '«'),
+            1802252: (509, 513, 'Были'),
+            1802253: (514, 523, 'проведены'),
+            1802254: (524, 536, 'определённые'),
+            1802255: (537, 549, 'консультации'),
+            1802256: (550, 552, 'по'),
+            1802257: (553, 559, 'поводу'),
+            1802258: (560, 564, 'того'),
+            1802259: (564, 565, ','),
+            1802260: (566, 569, 'кто'),
+            1802261: (570, 579, 'конкретно'),
+            1802262: (580, 583, 'мог'),
+            1802263: (584, 586, 'бы'),
+            1802264: (587, 599, 'осуществлять'),
+            1802265: (600, 606, 'такого'),
+            1802266: (607, 611, 'рода'),
+            1802267: (612, 618, 'работу'),
+            1802268: (618, 619, '.'),
+            1802269: (620, 624, 'Мною'),
+            1802270: (625, 632, 'принято'),
+            1802271: (633, 640, 'решение'),
+            1802272: (640, 641, ','),
+            1802273: (642, 645, 'что'),
+            1802274: (646, 656, 'российскую'),
+            1802275: (657, 662, 'часть'),
+            1802276: (663, 667, 'этой'),
+            1802277: (668, 682, 'координирующей'),
+            1802278: (683, 692, 'структуры'),
+            1802279: (692, 693, ','),
+            1802280: (694, 701, 'которую'),
+            1802281: (702, 704, 'мы'),
+            1802282: (705, 713, 'создадим'),
+            1802283: (713, 714, ','),
+            1802284: (715, 724, 'возглавит'),
+            1802285: (725, 731, 'Виктор'),
+            1802286: (732, 742, 'Феликсович'),
+            1802287: (743, 754, 'Вексельберг'),
+            1802288: (754, 755, '»'),
+            1802289: (755, 756, ','),
+            1802290: (757, 758, '—'),
+            1802291: (759, 767, 'цитирует'),
+            1802292: (768, 769, '«'),
+            1802293: (769, 775, 'Взгляд'),
+            1802294: (775, 776, '»'),
+            1802295: (777, 784, 'Дмитрия'),
+            1802296: (785, 794, 'Медведева'),
+            1802297: (794, 795, '.')
+        }
+        true_text = 'Назначен куратор строительства российской Кремниевой долины  Дмитрий Медведев доверил пост ' \
+                    'руководителя иннограда миллиардеру Виктору Вексельбергу.  Всё меньше остаётся нерешённых ' \
+                    'вопросов, касающихся возведения в России уникального Центра по разработке и коммерциализации ' \
+                    'новых технологий. Власти уже не только выбрали площадку для строительства отечественной ' \
+                    'Кремниевой долины в подмосковном Сколково, а также частично одобрили концепцию наукограда, но и ' \
+                    'определили куратора большой инновационной стройки. «Были проведены определённые консультации по ' \
+                    'поводу того, кто конкретно мог бы осуществлять такого рода работу. Мною принято решение, что ' \
+                    'российскую часть этой координирующей структуры, которую мы создадим, возглавит Виктор Феликсович' \
+                    ' Вексельберг», — цитирует «Взгляд» Дмитрия Медведева.'
+        true_bounds_of_paragraphs = ((0, 59), (61, 147), (149, 795))
+        loaded_tokens, loaded_text, loaded_paragraph_bounds = load_tokens_from_factrueval2016_by_paragraphs(
+            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.txt'),
+            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.tokens')
+        )
+        self.assertIsInstance(loaded_tokens, dict)
+        self.assertEqual(set(true_tokens.keys()), set(loaded_tokens.keys()))
+        for token_ID in true_tokens:
+            self.assertEqual(true_tokens[token_ID], loaded_tokens[token_ID])
+        self.assertEqual(true_text, loaded_text)
+        self.assertEqual(true_bounds_of_paragraphs, loaded_paragraph_bounds)
+
     def test_load_dataset_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         file_name = os.path.join(base_dir, 'dataset_with_paragraphs.json')
@@ -1911,681 +2588,6 @@ class TestELMoNER(unittest.TestCase):
                                  msg='Sample {0}'.format(sample_idx))
                 for entity_idx in range(len(y_true[sample_idx][ne_type])):
                     self.assertEqual(y_true[sample_idx][ne_type][entity_idx], y_loaded[sample_idx][ne_type][entity_idx])
-
-    def test_calculate_prediction_quality(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
-        self.assertEqual(X_true, X_pred)
-        f1, precision, recall = ELMo_NER.calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
-        self.assertIsInstance(f1, float)
-        self.assertIsInstance(precision, float)
-        self.assertIsInstance(recall, float)
-        self.assertAlmostEqual(f1, 0.842037, places=3)
-        self.assertAlmostEqual(precision, 0.908352, places=3)
-        self.assertAlmostEqual(recall, 0.784746, places=3)
-
-    def test_fit_positive01(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
-        self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lr'))
-        self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
-        self.assertTrue(hasattr(res, 'max_epochs'))
-        self.assertTrue(hasattr(res, 'patience'))
-        self.assertTrue(hasattr(res, 'random_seed'))
-        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(res, 'max_seq_length'))
-        self.assertTrue(hasattr(res, 'validation_fraction'))
-        self.assertTrue(hasattr(res, 'verbose'))
-        self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lr, float)
-        self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
-        self.assertIsInstance(res.max_epochs, int)
-        self.assertIsInstance(res.patience, int)
-        self.assertIsInstance(res.random_seed, int)
-        self.assertIsInstance(res.gpu_memory_frac, float)
-        self.assertIsInstance(res.max_seq_length, int)
-        self.assertIsInstance(res.validation_fraction, float)
-        self.assertIsInstance(res.verbose, bool)
-        self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
-        self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
-
-    def test_fit_positive02(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
-        self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lr'))
-        self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
-        self.assertTrue(hasattr(res, 'max_epochs'))
-        self.assertTrue(hasattr(res, 'patience'))
-        self.assertTrue(hasattr(res, 'random_seed'))
-        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(res, 'max_seq_length'))
-        self.assertTrue(hasattr(res, 'validation_fraction'))
-        self.assertTrue(hasattr(res, 'verbose'))
-        self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lr, float)
-        self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
-        self.assertIsInstance(res.max_epochs, int)
-        self.assertIsInstance(res.patience, int)
-        self.assertIsInstance(res.random_seed, int)
-        self.assertIsInstance(res.gpu_memory_frac, float)
-        self.assertIsInstance(res.max_seq_length, int)
-        self.assertIsInstance(res.validation_fraction, float)
-        self.assertIsInstance(res.verbose, bool)
-        self.assertEqual(res.random_seed, 42)
-        self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
-        self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
-
-    def test_fit_positive03(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
-        self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lr'))
-        self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
-        self.assertTrue(hasattr(res, 'max_epochs'))
-        self.assertTrue(hasattr(res, 'patience'))
-        self.assertTrue(hasattr(res, 'random_seed'))
-        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(res, 'max_seq_length'))
-        self.assertTrue(hasattr(res, 'validation_fraction'))
-        self.assertTrue(hasattr(res, 'verbose'))
-        self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lr, float)
-        self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
-        self.assertIsInstance(res.max_epochs, int)
-        self.assertIsInstance(res.patience, int)
-        self.assertIsInstance(res.random_seed, int)
-        self.assertIsInstance(res.gpu_memory_frac, float)
-        self.assertIsInstance(res.max_seq_length, int)
-        self.assertIsInstance(res.validation_fraction, float)
-        self.assertIsInstance(res.verbose, bool)
-        self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
-        self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
-
-    def test_fit_predict(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
-        self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lr'))
-        self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
-        self.assertTrue(hasattr(res, 'max_epochs'))
-        self.assertTrue(hasattr(res, 'patience'))
-        self.assertTrue(hasattr(res, 'random_seed'))
-        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(res, 'max_seq_length'))
-        self.assertTrue(hasattr(res, 'validation_fraction'))
-        self.assertTrue(hasattr(res, 'verbose'))
-        self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lr, float)
-        self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
-        self.assertIsInstance(res.max_epochs, int)
-        self.assertIsInstance(res.patience, int)
-        self.assertIsInstance(res.random_seed, int)
-        self.assertIsInstance(res.gpu_memory_frac, float)
-        self.assertIsInstance(res.max_seq_length, int)
-        self.assertIsInstance(res.validation_fraction, float)
-        self.assertIsInstance(res.verbose, bool)
-        self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
-        self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
-        y_pred = res.predict(X_train)
-        self.assertIsInstance(y_pred, list)
-        self.assertEqual(len(X_train), len(y_pred))
-        for sample_idx in range(len(y_pred)):
-            self.assertIsInstance(y_pred[sample_idx], dict)
-        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred, res.classes_list_)
-        self.assertGreater(f1, 0.0)
-        self.assertGreater(precision, 0.0)
-        self.assertGreater(recall, 0.0)
-
-    def test_predict_negative(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, random_seed=None,
-                            elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        with self.assertRaises(NotFittedError):
-            _ = self.ner.predict(X_train)
-
-    def test_serialize_positive01(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
-        self.assertIsInstance(res, ELMo_NER)
-        self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lr'))
-        self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(res, 'finetune_elmo'))
-        self.assertTrue(hasattr(res, 'max_epochs'))
-        self.assertTrue(hasattr(res, 'patience'))
-        self.assertTrue(hasattr(res, 'random_seed'))
-        self.assertTrue(hasattr(res, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(res, 'max_seq_length'))
-        self.assertTrue(hasattr(res, 'validation_fraction'))
-        self.assertTrue(hasattr(res, 'verbose'))
-        self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lr, float)
-        self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.elmo_hub_module_handle, str)
-        self.assertIsInstance(res.finetune_elmo, bool)
-        self.assertIsInstance(res.max_epochs, int)
-        self.assertIsInstance(res.patience, int)
-        self.assertIsInstance(res.random_seed, int)
-        self.assertIsInstance(res.gpu_memory_frac, float)
-        self.assertIsInstance(res.max_seq_length, int)
-        self.assertIsInstance(res.validation_fraction, float)
-        self.assertIsInstance(res.verbose, bool)
-        self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
-        self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
-        y_pred1 = res.predict(X_train)
-        self.assertIsInstance(y_pred1, list)
-        self.assertEqual(len(X_train), len(y_pred1))
-        for sample_idx in range(len(y_pred1)):
-            self.assertIsInstance(y_pred1[sample_idx], dict)
-        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
-        self.assertGreater(f1, 0.0)
-        self.assertGreater(precision, 0.0)
-        self.assertGreater(recall, 0.0)
-        self.temp_file_name = tempfile.NamedTemporaryFile(mode='w').name
-        with open(self.temp_file_name, mode='wb') as fp:
-            pickle.dump(res, fp)
-        del res, self.ner
-        gc.collect()
-        with open(self.temp_file_name, mode='rb') as fp:
-            self.ner = pickle.load(fp)
-        y_pred2 = self.ner.predict(X_train)
-        self.assertIsInstance(y_pred2, list)
-        self.assertEqual(len(y_pred2), len(y_pred2))
-        for sample_idx in range(len(y_pred2)):
-            self.assertIsInstance(y_pred2[sample_idx], dict)
-            self.assertEqual(set(y_pred1[sample_idx]), set(y_pred2[sample_idx]))
-            for ne_type in y_pred1[sample_idx]:
-                self.assertEqual(y_pred1[sample_idx][ne_type], y_pred2[sample_idx][ne_type])
-
-    def test_serialize_positive02(self):
-        self.ner = ELMo_NER(random_seed=31, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        old_batch_size = self.ner.batch_size
-        old_lr = self.ner.lr
-        old_l2_reg = self.ner.l2_reg
-        old_elmo_hub_module_handle = self.ner.elmo_hub_module_handle
-        old_finetune_elmo = self.ner.finetune_elmo
-        old_max_epochs = self.ner.max_epochs
-        old_patience = self.ner.patience
-        old_random_seed = self.ner.random_seed
-        old_gpu_memory_frac = self.ner.gpu_memory_frac
-        old_max_seq_length = self.ner.max_seq_length
-        old_validation_fraction = self.ner.validation_fraction
-        old_verbose = self.ner.verbose
-        self.temp_file_name = tempfile.NamedTemporaryFile().name
-        with open(self.temp_file_name, mode='wb') as fp:
-            pickle.dump(self.ner, fp)
-        del self.ner
-        gc.collect()
-        with open(self.temp_file_name, mode='rb') as fp:
-            self.ner = pickle.load(fp)
-        self.assertIsInstance(self.ner, ELMo_NER)
-        self.assertTrue(hasattr(self.ner, 'batch_size'))
-        self.assertTrue(hasattr(self.ner, 'lr'))
-        self.assertTrue(hasattr(self.ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.ner, 'finetune_elmo'))
-        self.assertTrue(hasattr(self.ner, 'max_epochs'))
-        self.assertTrue(hasattr(self.ner, 'patience'))
-        self.assertTrue(hasattr(self.ner, 'random_seed'))
-        self.assertTrue(hasattr(self.ner, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(self.ner, 'max_seq_length'))
-        self.assertTrue(hasattr(self.ner, 'validation_fraction'))
-        self.assertTrue(hasattr(self.ner, 'verbose'))
-        self.assertEqual(self.ner.batch_size, old_batch_size)
-        self.assertAlmostEqual(self.ner.lr, old_lr)
-        self.assertAlmostEqual(self.ner.l2_reg, old_l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, old_elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, old_finetune_elmo)
-        self.assertEqual(self.ner.max_epochs, old_max_epochs)
-        self.assertEqual(self.ner.patience, old_patience)
-        self.assertAlmostEqual(self.ner.gpu_memory_frac, old_gpu_memory_frac)
-        self.assertEqual(self.ner.max_seq_length, old_max_seq_length)
-        self.assertAlmostEqual(self.ner.validation_fraction, old_validation_fraction)
-        self.assertEqual(self.ner.verbose, old_verbose)
-        self.assertEqual(self.ner.random_seed, old_random_seed)
-
-    def test_copy_positive01(self):
-        self.ner = ELMo_NER(random_seed=0, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        self.another_ner = copy.copy(self.ner)
-        self.assertIsInstance(self.another_ner, ELMo_NER)
-        self.assertIsNot(self.ner, self.another_ner)
-        self.assertTrue(hasattr(self.another_ner, 'batch_size'))
-        self.assertTrue(hasattr(self.another_ner, 'lr'))
-        self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
-        self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
-        self.assertTrue(hasattr(self.another_ner, 'patience'))
-        self.assertTrue(hasattr(self.another_ner, 'random_seed'))
-        self.assertTrue(hasattr(self.another_ner, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
-        self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
-        self.assertTrue(hasattr(self.another_ner, 'verbose'))
-        self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
-        self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
-        self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
-        self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
-        self.assertEqual(self.ner.patience, self.another_ner.patience)
-        self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
-        self.assertAlmostEqual(self.ner.gpu_memory_frac, self.another_ner.gpu_memory_frac)
-        self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
-        self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
-        self.assertEqual(self.ner.verbose, self.another_ner.verbose)
-
-    def test_copy_positive02(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        self.ner.fit(X_train, y_train)
-        self.another_ner = copy.copy(self.ner)
-        self.assertIsInstance(self.another_ner, ELMo_NER)
-        self.assertIsNot(self.ner, self.another_ner)
-        self.assertTrue(hasattr(self.another_ner, 'batch_size'))
-        self.assertTrue(hasattr(self.another_ner, 'lr'))
-        self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'elmo_hub_module_handle'))
-        self.assertTrue(hasattr(self.another_ner, 'finetune_elmo'))
-        self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
-        self.assertTrue(hasattr(self.another_ner, 'patience'))
-        self.assertTrue(hasattr(self.another_ner, 'random_seed'))
-        self.assertTrue(hasattr(self.another_ner, 'gpu_memory_frac'))
-        self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
-        self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
-        self.assertTrue(hasattr(self.another_ner, 'verbose'))
-        self.assertTrue(hasattr(self.another_ner, 'classes_list_'))
-        self.assertTrue(hasattr(self.another_ner, 'logits_'))
-        self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
-        self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
-        self.assertTrue(hasattr(self.another_ner, 'input_tokens_'))
-        self.assertTrue(hasattr(self.another_ner, 'sequence_lengths_'))
-        self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
-        self.assertTrue(hasattr(self.another_ner, 'sess_'))
-        self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
-        self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
-        self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertEqual(self.ner.elmo_hub_module_handle, self.another_ner.elmo_hub_module_handle)
-        self.assertEqual(self.ner.finetune_elmo, self.another_ner.finetune_elmo)
-        self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
-        self.assertEqual(self.ner.patience, self.another_ner.patience)
-        self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
-        self.assertAlmostEqual(self.ner.gpu_memory_frac, self.another_ner.gpu_memory_frac)
-        self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
-        self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
-        self.assertEqual(self.ner.verbose, self.another_ner.verbose)
-        self.assertIs(self.ner.classes_list_, self.another_ner.classes_list_)
-        self.assertIs(self.ner.logits_, self.another_ner.logits_)
-        self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
-        self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
-        self.assertIs(self.ner.input_tokens_, self.another_ner.input_tokens_)
-        self.assertIs(self.ner.sequence_lengths_, self.another_ner.sequence_lengths_)
-        self.assertIs(self.ner.y_ph_, self.another_ner.y_ph_)
-        self.assertIs(self.ner.sess_, self.another_ner.sess_)
-
-    def test_calculate_bounds_of_named_entities(self):
-        bounds_of_tokens = [(0, 2), (2, 5), (5, 8), (8, 10), (11, 16), (17, 20), (20, 22), (22, 26), (26, 27), (28, 31),
-                            (31, 34), (34, 37), (38, 48), (49, 52), (52, 54), (55, 57), (58, 59), (59, 61), (61, 63),
-                            (64, 70), (71, 83), (84, 87), (87, 90), (90, 93), (93, 95), (95, 98), (98, 99)]
-        classes_list = ('LOCATION', 'ORG', 'PERSON')
-        labels_of_tokens = [0, 0, 2, 1, 1, 2, 1, 0, 0, 0, 4, 3, 0, 6, 5, 5, 5, 0, 5, 5, 0, 2, 2, 3, 3, 6, 5]
-        true_entities = {
-            'LOCATION': [(5, 16), (17, 22), (84, 87), (87, 90)],
-            'ORG': [(31, 37), (90, 95)],
-            'PERSON': [(49, 59), (61, 70), (95, 99)]
-        }
-        calc_entities = ELMo_NER.calculate_bounds_of_named_entities(bounds_of_tokens, classes_list, labels_of_tokens)
-        self.assertIsInstance(calc_entities, dict)
-        self.assertEqual(set(true_entities.keys()), set(calc_entities.keys()))
-        for entity_type in true_entities:
-            self.assertEqual(true_entities[entity_type], calc_entities[entity_type])
-
-    def test_load_tokens_from_factrueval2016_by_sentences(self):
-        true_tokens = {
-            1802186: (0, 8, 'Назначен'),
-            1802187: (9, 6, 'куратор'),
-            1802188: (17, 30, 'строительства'),
-            1802189: (31, 41, 'российской'),
-            1802190: (42, 52, 'Кремниевой'),
-            1802191: (53, 59, 'долины'),
-            1802192: (61, 68, 'Дмитрий'),
-            1802193: (69, 77, 'Медведев'),
-            1802194: (78, 85, 'доверил'),
-            1802195: (86, 90, 'пост'),
-            1802196: (91, 103, 'руководителя'),
-            1802197: (104, 113, 'иннограда'),
-            1802198: (114, 125, 'миллиардеру'),
-            1802199: (126, 133, 'Виктору'),
-            1802200: (134, 146, 'Вексельбергу'),
-            1802201: (146, 147, '.'),
-            1802202: (149, 152, 'Всё'),
-            1802203: (153, 159, 'меньше'),
-            1802204: (160, 168, 'остаётся'),
-            1802205: (169, 179, 'нерешённых'),
-            1802206: (180, 188, 'вопросов'),
-            1802207: (188, 189, ','),
-            1802208: (190, 200, 'касающихся'),
-            1802209: (201, 211, 'возведения'),
-            1802210: (212, 213, 'в'),
-            1802211: (214, 220, 'России'),
-            1802212: (221, 232, 'уникального'),
-            1802213: (233, 239, 'Центра'),
-            1802214: (240, 242, 'по'),
-            1802215: (243, 253, 'разработке'),
-            1802216: (254, 255, 'и'),
-            1802217: (256, 272, 'коммерциализации'),
-            1802218: (273, 278, 'новых'),
-            1802219: (279, 289, 'технологий'),
-            1802220: (289, 290, '.'),
-            1802221: (291, 297, 'Власти'),
-            1802222: (298, 301, 'уже'),
-            1802223: (302, 304, 'не'),
-            1802224: (305, 311, 'только'),
-            1802225: (312, 319, 'выбрали'),
-            1802226: (320, 328, 'площадку'),
-            1802227: (329, 332, 'для'),
-            1802228: (333, 346, 'строительства'),
-            1802229: (347, 360, 'отечественной'),
-            1802230: (361, 371, 'Кремниевой'),
-            1802231: (372, 378, 'долины'),
-            1802232: (379, 380, 'в'),
-            1802233: (381, 393, 'подмосковном'),
-            1802234: (394, 402, 'Сколково'),
-            1802235: (402, 403, ','),
-            1802236: (404, 405, 'а'),
-            1802237: (406, 411, 'также'),
-            1802238: (412, 420, 'частично'),
-            1802239: (421, 429, 'одобрили'),
-            1802240: (430, 439, 'концепцию'),
-            1802241: (440, 450, 'наукограда'),
-            1802242: (450, 451, ','),
-            1802243: (452, 454, 'но'),
-            1802244: (455, 456, 'и'),
-            1802245: (457, 467, 'определили'),
-            1802246: (468, 476, 'куратора'),
-            1802247: (477, 484, 'большой'),
-            1802248: (485, 498, 'инновационной'),
-            1802249: (499, 506, 'стройки'),
-            1802250: (506, 507, '.'),
-            1802251: (508, 509, '«'),
-            1802252: (509, 513, 'Были'),
-            1802253: (514, 523, 'проведены'),
-            1802254: (524, 536, 'определённые'),
-            1802255: (537, 549, 'консультации'),
-            1802256: (550, 552, 'по'),
-            1802257: (553, 559, 'поводу'),
-            1802258: (560, 564, 'того'),
-            1802259: (564, 565, ','),
-            1802260: (566, 569, 'кто'),
-            1802261: (570, 579, 'конкретно'),
-            1802262: (580, 583, 'мог'),
-            1802263: (584, 586, 'бы'),
-            1802264: (587, 599, 'осуществлять'),
-            1802265: (600, 606, 'такого'),
-            1802266: (607, 611, 'рода'),
-            1802267: (612, 618, 'работу'),
-            1802268: (618, 619, '.'),
-            1802269: (620, 624, 'Мною'),
-            1802270: (625, 632, 'принято'),
-            1802271: (633, 640, 'решение'),
-            1802272: (640, 641, ','),
-            1802273: (642, 645, 'что'),
-            1802274: (646, 656, 'российскую'),
-            1802275: (657, 662, 'часть'),
-            1802276: (663, 667, 'этой'),
-            1802277: (668, 682, 'координирующей'),
-            1802278: (683, 692, 'структуры'),
-            1802279: (692, 693, ','),
-            1802280: (694, 701, 'которую'),
-            1802281: (702, 704, 'мы'),
-            1802282: (705, 713, 'создадим'),
-            1802283: (713, 714, ','),
-            1802284: (715, 724, 'возглавит'),
-            1802285: (725, 731, 'Виктор'),
-            1802286: (732, 10, 'Феликсович'),
-            1802287: (743, 754, 'Вексельберг'),
-            1802288: (754, 755, '»'),
-            1802289: (755, 756, ','),
-            1802290: (757, 758, '—'),
-            1802291: (759, 767, 'цитирует'),
-            1802292: (768, 769, '«'),
-            1802293: (769, 775, 'Взгляд'),
-            1802294: (775, 776, '»'),
-            1802295: (777, 784, 'Дмитрия'),
-            1802296: (785, 794, 'Медведева'),
-            1802297: (794, 795, '.')
-        }
-        true_text = 'Назначен куратор строительства российской Кремниевой долины  Дмитрий Медведев доверил пост ' \
-                    'руководителя иннограда миллиардеру Виктору Вексельбергу.  Всё меньше остаётся нерешённых ' \
-                    'вопросов, касающихся возведения в России уникального Центра по разработке и коммерциализации ' \
-                    'новых технологий. Власти уже не только выбрали площадку для строительства отечественной ' \
-                    'Кремниевой долины в подмосковном Сколково, а также частично одобрили концепцию наукограда, но и ' \
-                    'определили куратора большой инновационной стройки. «Были проведены определённые консультации по ' \
-                    'поводу того, кто конкретно мог бы осуществлять такого рода работу. Мною принято решение, что ' \
-                    'российскую часть этой координирующей структуры, которую мы создадим, возглавит Виктор Феликсович' \
-                    ' Вексельберг», — цитирует «Взгляд» Дмитрия Медведева.'
-        true_bounds_of_sentences = ((0, 59), (61, 147), (149, 290), (291, 507), (508, 619), (620, 756), (757, 795))
-        loaded_tokens, loaded_text, loaded_sentence_bounds = load_tokens_from_factrueval2016_by_sentences(
-            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.tokens')
-        )
-        self.assertIsInstance(loaded_tokens, dict)
-        self.assertEqual(set(true_tokens.keys()), set(loaded_tokens.keys()))
-        for token_ID in true_tokens:
-            self.assertEqual(true_tokens[token_ID], loaded_tokens[token_ID])
-        self.assertEqual(true_text, loaded_text)
-        self.assertEqual(true_bounds_of_sentences, loaded_sentence_bounds)
-
-    def test_load_tokens_from_factrueval2016_by_paragraphs(self):
-        true_tokens = {
-            1802186: (0, 8, 'Назначен'),
-            1802187: (9, 6, 'куратор'),
-            1802188: (17, 30, 'строительства'),
-            1802189: (31, 41, 'российской'),
-            1802190: (42, 52, 'Кремниевой'),
-            1802191: (53, 59, 'долины'),
-            1802192: (61, 68, 'Дмитрий'),
-            1802193: (69, 77, 'Медведев'),
-            1802194: (78, 85, 'доверил'),
-            1802195: (86, 90, 'пост'),
-            1802196: (91, 103, 'руководителя'),
-            1802197: (104, 113, 'иннограда'),
-            1802198: (114, 125, 'миллиардеру'),
-            1802199: (126, 133, 'Виктору'),
-            1802200: (134, 146, 'Вексельбергу'),
-            1802201: (146, 147, '.'),
-            1802202: (149, 152, 'Всё'),
-            1802203: (153, 159, 'меньше'),
-            1802204: (160, 168, 'остаётся'),
-            1802205: (169, 179, 'нерешённых'),
-            1802206: (180, 188, 'вопросов'),
-            1802207: (188, 189, ','),
-            1802208: (190, 200, 'касающихся'),
-            1802209: (201, 211, 'возведения'),
-            1802210: (212, 213, 'в'),
-            1802211: (214, 220, 'России'),
-            1802212: (221, 232, 'уникального'),
-            1802213: (233, 239, 'Центра'),
-            1802214: (240, 242, 'по'),
-            1802215: (243, 253, 'разработке'),
-            1802216: (254, 255, 'и'),
-            1802217: (256, 272, 'коммерциализации'),
-            1802218: (273, 278, 'новых'),
-            1802219: (279, 289, 'технологий'),
-            1802220: (289, 290, '.'),
-            1802221: (291, 297, 'Власти'),
-            1802222: (298, 301, 'уже'),
-            1802223: (302, 304, 'не'),
-            1802224: (305, 311, 'только'),
-            1802225: (312, 319, 'выбрали'),
-            1802226: (320, 328, 'площадку'),
-            1802227: (329, 332, 'для'),
-            1802228: (333, 346, 'строительства'),
-            1802229: (347, 360, 'отечественной'),
-            1802230: (361, 371, 'Кремниевой'),
-            1802231: (372, 378, 'долины'),
-            1802232: (379, 380, 'в'),
-            1802233: (381, 393, 'подмосковном'),
-            1802234: (394, 402, 'Сколково'),
-            1802235: (402, 403, ','),
-            1802236: (404, 405, 'а'),
-            1802237: (406, 411, 'также'),
-            1802238: (412, 420, 'частично'),
-            1802239: (421, 429, 'одобрили'),
-            1802240: (430, 439, 'концепцию'),
-            1802241: (440, 450, 'наукограда'),
-            1802242: (450, 451, ','),
-            1802243: (452, 454, 'но'),
-            1802244: (455, 456, 'и'),
-            1802245: (457, 467, 'определили'),
-            1802246: (468, 476, 'куратора'),
-            1802247: (477, 484, 'большой'),
-            1802248: (485, 498, 'инновационной'),
-            1802249: (499, 506, 'стройки'),
-            1802250: (506, 507, '.'),
-            1802251: (508, 509, '«'),
-            1802252: (509, 513, 'Были'),
-            1802253: (514, 523, 'проведены'),
-            1802254: (524, 536, 'определённые'),
-            1802255: (537, 549, 'консультации'),
-            1802256: (550, 552, 'по'),
-            1802257: (553, 559, 'поводу'),
-            1802258: (560, 564, 'того'),
-            1802259: (564, 565, ','),
-            1802260: (566, 569, 'кто'),
-            1802261: (570, 579, 'конкретно'),
-            1802262: (580, 583, 'мог'),
-            1802263: (584, 586, 'бы'),
-            1802264: (587, 599, 'осуществлять'),
-            1802265: (600, 606, 'такого'),
-            1802266: (607, 611, 'рода'),
-            1802267: (612, 618, 'работу'),
-            1802268: (618, 619, '.'),
-            1802269: (620, 624, 'Мною'),
-            1802270: (625, 632, 'принято'),
-            1802271: (633, 640, 'решение'),
-            1802272: (640, 641, ','),
-            1802273: (642, 645, 'что'),
-            1802274: (646, 656, 'российскую'),
-            1802275: (657, 662, 'часть'),
-            1802276: (663, 667, 'этой'),
-            1802277: (668, 682, 'координирующей'),
-            1802278: (683, 692, 'структуры'),
-            1802279: (692, 693, ','),
-            1802280: (694, 701, 'которую'),
-            1802281: (702, 704, 'мы'),
-            1802282: (705, 713, 'создадим'),
-            1802283: (713, 714, ','),
-            1802284: (715, 724, 'возглавит'),
-            1802285: (725, 731, 'Виктор'),
-            1802286: (732, 10, 'Феликсович'),
-            1802287: (743, 754, 'Вексельберг'),
-            1802288: (754, 755, '»'),
-            1802289: (755, 756, ','),
-            1802290: (757, 758, '—'),
-            1802291: (759, 767, 'цитирует'),
-            1802292: (768, 769, '«'),
-            1802293: (769, 775, 'Взгляд'),
-            1802294: (775, 776, '»'),
-            1802295: (777, 784, 'Дмитрия'),
-            1802296: (785, 794, 'Медведева'),
-            1802297: (794, 795, '.')
-        }
-        true_text = 'Назначен куратор строительства российской Кремниевой долины  Дмитрий Медведев доверил пост ' \
-                    'руководителя иннограда миллиардеру Виктору Вексельбергу.  Всё меньше остаётся нерешённых ' \
-                    'вопросов, касающихся возведения в России уникального Центра по разработке и коммерциализации ' \
-                    'новых технологий. Власти уже не только выбрали площадку для строительства отечественной ' \
-                    'Кремниевой долины в подмосковном Сколково, а также частично одобрили концепцию наукограда, но и ' \
-                    'определили куратора большой инновационной стройки. «Были проведены определённые консультации по ' \
-                    'поводу того, кто конкретно мог бы осуществлять такого рода работу. Мною принято решение, что ' \
-                    'российскую часть этой координирующей структуры, которую мы создадим, возглавит Виктор Феликсович' \
-                    ' Вексельберг», — цитирует «Взгляд» Дмитрия Медведева.'
-        true_bounds_of_paragraphs = ((0, 59), (61, 147), (149, 795))
-        loaded_tokens, loaded_text, loaded_paragraph_bounds = load_tokens_from_factrueval2016_by_paragraphs(
-            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.txt'),
-            os.path.join(os.path.dirname(__file__), 'testdata', 'factrueval_data', 'book_3543.tokens')
-        )
-        self.assertIsInstance(loaded_tokens, dict)
-        self.assertEqual(set(true_tokens.keys()), set(loaded_tokens.keys()))
-        for token_ID in true_tokens:
-            self.assertEqual(true_tokens[token_ID], loaded_tokens[token_ID])
-        self.assertEqual(true_text, loaded_text)
-        self.assertEqual(true_bounds_of_paragraphs, loaded_paragraph_bounds)
 
 
 if __name__ == '__main__':
