@@ -171,16 +171,22 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     y_tokenized[test_index],
                     shuffle=True
                 )
+                true_entities_val = [y[sample_idx] for sample_idx in test_index]
+                texts_val = [X[sample_idx] for sample_idx in test_index]
                 del labels_for_splitting, train_index, test_index, sss
             else:
                 X_train, y_train = self.extend_Xy(X_tokenized, y_tokenized, shuffle=True)
                 X_val = None
                 y_val = None
+                true_entities_val = None
+                texts_val = None
         else:
             X_train = X_tokenized
             y_train = y_tokenized
             X_val = None
             y_val = None
+            true_entities_val = None
+            texts_val = None
         del X_tokenized, y_tokenized
         n_batches = int(np.ceil(X_train[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
@@ -205,7 +211,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             if X_val is None:
                 elmo_ner_logger.info('Epoch   Train acc.')
             else:
-                elmo_ner_logger.info('Epoch   Train acc.   Test acc.')
+                elmo_ner_logger.info('Epoch   Train acc.   Test acc.   Test F1')
         n_epochs_without_improving = 0
         try:
             best_acc = None
@@ -220,24 +226,46 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
                 if bounds_of_batches_for_validation is not None:
                     acc_test = 0.0
+                    y_pred = []
                     for cur_batch in bounds_of_batches_for_validation:
                         X_batch = [X_val[channel_idx][cur_batch[0]:cur_batch[1]] for channel_idx in range(len(X_val))]
                         y_batch = y_val[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
-                        acc_test += self.batch_size * accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
+                        acc_test_, logits, trans_params = self.sess_.run(
+                            [accuracy, self.logits_, self.transition_params_],
+                            feed_dict=feed_dict_for_batch
+                        )
+                        acc_test += acc_test_ * self.batch_size
+                        sequence_lengths = X_val[1][cur_batch[0]:cur_batch[1]]
+                        for logit, sequence_length in zip(logits, sequence_lengths):
+                            logit = logit[:int(sequence_length)]
+                            viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                            y_pred += [viterbi_seq]
                     acc_test /= float(X_val[0].shape[0])
+                    pred_entities_val = []
+                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
+                        n_tokens = len(labels_in_text)
+                        tokens = X_val[0][sample_idx][:n_tokens]
+                        bounds_of_tokens = self.calculate_bounds_of_tokens(texts_val[sample_idx], tokens)
+                        new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
+                                                                               labels_in_text)
+                        pred_entities_val.append(new_entities)
+                    f1_test, _, _ = self.calculate_prediction_quality(true_entities_val, pred_entities_val,
+                                                                      self.classes_list_)
                     if best_acc is None:
-                        best_acc = acc_test
+                        best_acc = f1_test
                         saver.save(self.sess_, tmp_model_name)
                         n_epochs_without_improving = 0
-                    elif acc_test > best_acc:
-                        best_acc = acc_test
+                    elif f1_test > best_acc:
+                        best_acc = f1_test
                         saver.save(self.sess_, tmp_model_name)
                         n_epochs_without_improving = 0
                     else:
                         n_epochs_without_improving += 1
                     if self.verbose:
-                        elmo_ner_logger.info('{0:>5}   {1:>10.8f}   {2:>10.8f}'.format(epoch, acc_train, acc_test))
+                        elmo_ner_logger.info('{0:>5}   {1:>10.8f}   {2:>10.8f}   {3:>8.6f}'.format(
+                            epoch, acc_train, acc_test, f1_test))
+                    del y_pred, pred_entities_val
                 else:
                     if best_acc is None:
                         best_acc = acc_train
@@ -962,8 +990,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 elif ne_class in predicted_entities_[sample_idx]:
                     for entity_bounds in predicted_entities_[sample_idx][ne_class]:
                         fp_total += (entity_bounds[1] - entity_bounds[0])
-        precision = tp_total / float(tp_total + fp_total)
-        recall = tp_total / float(tp_total + fn_total)
+        precision = tp_total / float(tp_total + fp_total) if tp_total > 0 else 0.0
+        recall = tp_total / float(tp_total + fn_total) if tp_total > 0 else 0.0
         if (precision + recall) > 0.0:
             f1 = 2 * precision * recall / (precision + recall)
         else:
