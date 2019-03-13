@@ -211,7 +211,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             if X_val is None:
                 elmo_ner_logger.info('Epoch   Train acc.')
             else:
-                elmo_ner_logger.info('Epoch   Train acc.   Test acc.   Test F1')
+                elmo_ner_logger.info('Epoch   Train acc.    Test acc.    Test F1')
         n_epochs_without_improving = 0
         try:
             best_acc = None
@@ -696,7 +696,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             model_files.append(model_name)
         dir_name = os.path.dirname(model_name)
         base_name = os.path.basename(model_name)
-        for cur in filter(lambda it: it.lower().startswith(base_name.lower()), os.listdir(dir_name)):
+        for cur in filter(lambda it: it.lower().find(base_name.lower()) >= 0, os.listdir(dir_name)):
             model_files.append(os.path.join(dir_name, cur))
         return sorted(model_files)
 
