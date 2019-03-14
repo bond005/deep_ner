@@ -52,7 +52,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         elmo_hub_module_handle = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
         recognizer = ELMo_NER(
             finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=1e-3, max_seq_length=n_tokens,
-            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.1, max_epochs=max_epochs, patience=5,
+            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.2, max_epochs=max_epochs, patience=5,
             gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr
         )
         recognizer.fit(X, y)

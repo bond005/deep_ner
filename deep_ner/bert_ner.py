@@ -367,6 +367,36 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     break
             if best_acc is not None:
                 saver.restore(self.sess_, tmp_model_name)
+                if self.verbose and (bounds_of_batches_for_validation is not None):
+                    acc_test = 0.0
+                    y_pred = []
+                    for cur_batch in bounds_of_batches_for_validation:
+                        X_batch = [X_val[channel_idx][cur_batch[0]:cur_batch[1]] for channel_idx in range(len(X_val))]
+                        y_batch = y_val[cur_batch[0]:cur_batch[1]]
+                        feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
+                        acc_test_, logits, trans_params, mask = self.sess_.run(
+                            [accuracy, self.logits_, self.transition_params_, self.input_mask_],
+                            feed_dict=feed_dict_for_batch
+                        )
+                        acc_test += self.batch_size * acc_test_
+                        sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
+                        for logit, sequence_length in zip(logits, sequence_lengths):
+                            logit = logit[:int(sequence_length)]
+                            viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                            y_pred += [viterbi_seq]
+                    acc_test /= float(X_val[0].shape[0])
+                    pred_entities_val = []
+                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
+                        n_tokens = len(labels_in_text)
+                        tokens = self.tokenizer_.convert_ids_to_tokens(X_val[0][sample_idx][1:(n_tokens - 1)])
+                        bounds_of_tokens = self.calculate_bounds_of_tokens(texts_val[sample_idx], tokens)
+                        new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
+                                                                               labels_in_text[1:(n_tokens - 1)])
+                        pred_entities_val.append(new_entities)
+                    f1_test, _, _ = self.calculate_prediction_quality(true_entities_val, pred_entities_val,
+                                                                      self.classes_list_)
+                    bert_ner_logger.info('Best val. F1 is {0:>8.6f}'.format(f1_test))
+                    bert_ner_logger.info('Best val. acc. is {0:>10.8f}'.format(acc_test))
         finally:
             for cur_name in self.find_all_model_files(tmp_model_name):
                 os.remove(cur_name)
