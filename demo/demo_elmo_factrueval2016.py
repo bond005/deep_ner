@@ -13,10 +13,12 @@ from nltk.tokenize.nist import NISTTokenizer
 try:
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.quality import calculate_prediction_quality
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
@@ -86,8 +88,7 @@ def recognize(factrueval2016_testset_dir: str, split_by_paragraphs: bool, recogn
     print('')
     predicted_entities = recognizer.predict(texts)
     assert len(predicted_entities) == len(true_entities)
-    f1, precision, recall = recognizer.calculate_prediction_quality(true_entities, predicted_entities,
-                                                                    recognizer.classes_list_)
+    f1, precision, recall = calculate_prediction_quality(true_entities, predicted_entities, recognizer.classes_list_)
     print('F1-score is {0:.2%}.'.format(f1))
     print('Precision is {0:.2%}.'.format(precision))
     print('Recall is {0:.2%}.'.format(recall))
