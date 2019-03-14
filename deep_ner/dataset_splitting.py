@@ -1,3 +1,4 @@
+from logging import Logger
 from typing import Tuple, Union
 
 import numpy as np
@@ -5,7 +6,8 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 
 def split_dataset(X: Union[list, tuple, np.array], y_tokenized: np.ndarray, test_part: float, n_restarts: int=3,
-                  random_seed: Union[int, None]=None) -> Tuple[np.ndarray, np.ndarray]:
+                  random_seed: Union[int, None]=None, logger: Union[Logger, None]=None) -> \
+        Tuple[np.ndarray, np.ndarray]:
     if n_restarts < 2:
         raise ValueError('{0} is too small value of restarts number. It must be greater than 1.'.format(n_restarts))
     n_samples = y_tokenized.shape[0]
@@ -73,6 +75,8 @@ def split_dataset(X: Union[list, tuple, np.array], y_tokenized: np.ndarray, test
             train_index = indices[0:n_train]
             test_index = indices[n_train:]
             del indices
+            if logger is not None:
+                logger.warn('')
         else:
             train_index = set(train_index.tolist())
             test_index = set(test_index.tolist())

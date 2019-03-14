@@ -152,7 +152,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             n_validation = int(round(len(X) * self.validation_fraction))
             if n_validation > 0:
                 train_index, test_index = split_dataset(X, y_tokenized, test_part=self.validation_fraction,
-                                                        n_restarts=4, random_seed=self.random_seed)
+                                                        n_restarts=4, random_seed=self.random_seed,
+                                                        logger=elmo_ner_logger)
                 X_train, y_train = self.extend_Xy(
                     [X_tokenized[channel_idx][train_index] for channel_idx in range(len(X_tokenized))],
                     y_tokenized[train_index],
