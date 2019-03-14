@@ -13,10 +13,12 @@ from sklearn.exceptions import NotFittedError
 try:
     from deep_ner.elmo_ner import ELMo_NER
     from deep_ner.utils import load_dataset
+    from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER
     from deep_ner.utils import load_dataset
+    from deep_ner.quality import calculate_prediction_quality
 
 
 class TestELMoNER(unittest.TestCase):
@@ -886,118 +888,6 @@ class TestELMoNER(unittest.TestCase):
         for label_ID in true_labels_to_classes:
             self.assertEqual(true_labels_to_classes[label_ID], labels_to_classes[label_ID])
 
-    def test_tokenize_by_character_groups(self):
-        source_text = 'Один из последних представителей клады, тираннозавр (Tyrannosaurus rex), живший 66–67 ' \
-                      'миллионов лет назад, был одним из крупнейших когда-либо живших сухопутных хищников'
-        true_tokens = ['Один', 'из', 'последних', 'представителей', 'клады', ',', 'тираннозавр', '(', 'Tyrannosaurus',
-                       'rex', ')', ',', 'живший', '66', '–', '67', 'миллионов', 'лет', 'назад', ',', 'был', 'одним',
-                       'из', 'крупнейших', 'когда', '-', 'либо', 'живших', 'сухопутных', 'хищников']
-        self.assertEqual(true_tokens, ELMo_NER.tokenize_by_character_groups(source_text))
-
-    def test_calc_similarity_between_entities_positive01(self):
-        gold_entity = (3, 9)
-        predicted_entity = (3, 9)
-        true_similarity = 1.0
-        true_tp = 6
-        true_fp = 0
-        true_fn = 0
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive02(self):
-        gold_entity = (4, 8)
-        predicted_entity = (3, 9)
-        true_similarity = 0.666666667
-        true_tp = 4
-        true_fp = 2
-        true_fn = 0
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive03(self):
-        gold_entity = (3, 9)
-        predicted_entity = (4, 8)
-        true_similarity = 0.666666667
-        true_tp = 4
-        true_fp = 0
-        true_fn = 2
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive04(self):
-        gold_entity = (3, 9)
-        predicted_entity = (2, 8)
-        true_similarity = 0.714285714
-        true_tp = 5
-        true_fp = 1
-        true_fn = 1
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive05(self):
-        gold_entity = (2, 8)
-        predicted_entity = (3, 9)
-        true_similarity = 0.714285714
-        true_tp = 5
-        true_fp = 1
-        true_fn = 1
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive06(self):
-        gold_entity = (3, 9)
-        predicted_entity = (10, 16)
-        true_similarity = 0.0
-        true_tp = 0
-        true_fp = 6
-        true_fn = 6
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calc_similarity_between_entities_positive07(self):
-        gold_entity = (3, 9)
-        predicted_entity = (0, 2)
-        true_similarity = 0.0
-        true_tp = 0
-        true_fp = 2
-        true_fn = 6
-        similarity, tp, fp, fn = ELMo_NER.calc_similarity_between_entities(gold_entity, predicted_entity)
-        self.assertAlmostEqual(true_similarity, similarity, places=4)
-        self.assertEqual(true_tp, tp)
-        self.assertEqual(true_fp, fp)
-        self.assertEqual(true_fn, fn)
-
-    def test_calculate_prediction_quality(self):
-        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
-        self.assertEqual(X_true, X_pred)
-        f1, precision, recall = ELMo_NER.calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
-        self.assertIsInstance(f1, float)
-        self.assertIsInstance(precision, float)
-        self.assertIsInstance(recall, float)
-        self.assertAlmostEqual(f1, 0.842037, places=3)
-        self.assertAlmostEqual(precision, 0.908352, places=3)
-        self.assertAlmostEqual(recall, 0.784746, places=3)
-
     def test_fit_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
@@ -1180,7 +1070,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(len(X_train), len(y_pred))
         for sample_idx in range(len(y_pred)):
             self.assertIsInstance(y_pred[sample_idx], dict)
-        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred, res.classes_list_)
+        f1, precision, recall = calculate_prediction_quality(y_train, y_pred, res.classes_list_)
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
@@ -1242,7 +1132,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(len(X_train), len(y_pred1))
         for sample_idx in range(len(y_pred1)):
             self.assertIsInstance(y_pred1[sample_idx], dict)
-        f1, precision, recall = res.calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
+        f1, precision, recall = calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)

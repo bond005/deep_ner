@@ -44,7 +44,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             bert_hub_module_handle = None
         recognizer = BERT_NER(
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=1e-3,
-            bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.2,
+            bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.25,
             max_epochs=max_epochs, patience=3, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
             lr=1e-5 if bert_will_be_tuned else 1e-3
         )
