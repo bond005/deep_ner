@@ -76,7 +76,7 @@ def split_dataset(X: Union[list, tuple, np.array], y_tokenized: np.ndarray, test
             test_index = indices[n_train:]
             del indices
             if logger is not None:
-                logger.warn('')
+                logger.warning('Data set cannot be splitted by stratified folds.')
         else:
             train_index = set(train_index.tolist())
             test_index = set(test_index.tolist())
