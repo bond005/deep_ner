@@ -3,6 +3,8 @@ import json
 import os
 from typing import Dict, Tuple, List
 
+from nltk.tokenize import word_tokenize
+
 
 def load_tokens_from_factrueval2016_by_paragraphs(text_file_name: str, tokens_file_name: str) -> \
         Tuple[Dict[int, Tuple[int, int, str]], str, tuple]:
@@ -274,6 +276,72 @@ def load_objects_from_factrueval2016(objects_file_name: str,
             cur_line = fp.readline()
             line_idx += 1
     return objects
+
+
+def check_factrueval_tokenization(src_dir_name: str, split_by_paragraphs: bool):
+    factrueval_files = dict()
+    for cur_file_name in os.listdir(src_dir_name):
+        if cur_file_name.endswith('.objects'):
+            base_name = cur_file_name[:-len('.objects')]
+        elif cur_file_name.endswith('.spans'):
+            base_name = cur_file_name[:-len('.spans')]
+        elif cur_file_name.endswith('.tokens'):
+            base_name = cur_file_name[:-len('.tokens')]
+        else:
+            base_name = None
+        if base_name is not None:
+            if base_name in factrueval_files:
+                assert cur_file_name not in factrueval_files[base_name]
+                factrueval_files[base_name].append(cur_file_name)
+            else:
+                factrueval_files[base_name] = [cur_file_name]
+    for base_name in factrueval_files:
+        if len(factrueval_files[base_name]) != 3:
+            raise ValueError('Files list for `{0}` is wrong!'.format(base_name))
+        text_file_name = os.path.join(src_dir_name, base_name + '.txt')
+        if not os.path.isfile(text_file_name):
+            raise ValueError('File `{0}` does not exist!'.format(text_file_name))
+        factrueval_files[base_name].append(text_file_name)
+        factrueval_files[base_name] = sorted(factrueval_files[base_name])
+    n_good = 0
+    n_total = 0
+    for base_name in sorted(list(factrueval_files.keys())):
+        if split_by_paragraphs:
+            tokens, text, paragraphs = load_tokens_from_factrueval2016_by_paragraphs(
+                os.path.join(src_dir_name, base_name + '.txt'), os.path.join(src_dir_name, base_name + '.tokens')
+            )
+        else:
+            tokens, text, paragraphs = load_tokens_from_factrueval2016_by_sentences(
+                os.path.join(src_dir_name, base_name + '.tokens')
+            )
+        tokens_by_tokenizer = []
+        for paragraph_start, paragraph_end in paragraphs:
+            tokens_by_tokenizer += word_tokenize(text[paragraph_start:paragraph_end])
+        tokens_by_factrueval = []
+        for token_id in sorted(list(tokens.keys())):
+            tokens_by_factrueval.append(tokens[token_id][2])
+        tokens_by_tokenizer = tuple(tokens_by_tokenizer)
+        tokens_by_factrueval = tuple(tokens_by_factrueval)
+        if tokens_by_tokenizer == tokens_by_factrueval:
+            print('')
+            print('{0}'.format(base_name))
+            print('All right!')
+            print('')
+            n_good += 1
+        else:
+            print('')
+            print('{0}'.format(base_name))
+            print('')
+            print('true tokens:')
+            print('{0}'.format(tokens_by_factrueval))
+            print('')
+            print('calculated tokens:')
+            print('{0}'.format(tokens_by_tokenizer))
+            print('')
+        n_total += 1
+    print('')
+    print('Total number of texts is {0}.'.format(n_total))
+    print('Number of correctly tokenized texts is {0}.'.format(n_good))
 
 
 def factrueval2016_to_json(src_dir_name: str, dst_json_name: str, split_by_paragraphs: bool=True):

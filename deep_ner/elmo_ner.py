@@ -37,14 +37,13 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
+        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
             del self.classes_list_
         if hasattr(self, 'shapes_list_'):
             del self.shapes_list_
-        if hasattr(self, 'tokenizer_'):
-            del self.tokenizer_
         if hasattr(self, 'input_tokens_'):
             del self.input_tokens_
         if hasattr(self, 'sequence_lengths_'):
@@ -74,8 +73,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         self.classes_list_ = self.check_Xy(X, 'X', y, 'y')
         if hasattr(self, 'shapes_list_'):
             del self.shapes_list_
-        if hasattr(self, 'tokenizer_'):
-            del self.tokenizer_
         if hasattr(self, 'input_tokens_'):
             del self.input_tokens_
         if hasattr(self, 'sequence_lengths_'):
@@ -110,7 +107,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             sequence_len=self.sequence_lengths_
         )
         elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
-        self.tokenizer_ = NISTTokenizer()
         sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
         sequence_output = tf.reshape(sequence_output, [self.batch_size, self.max_seq_length, 1024])
         if self.verbose:
@@ -358,8 +354,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         return recognized_entities_in_texts
 
     def is_fitted(self):
-        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_', 'tokenizer_',
-                               'input_tokens_', 'sequence_lengths_', 'additional_features_', 'y_ph_', 'sess_'])
+        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_',  'input_tokens_',
+                               'sequence_lengths_', 'additional_features_', 'y_ph_', 'sess_'])
 
     def score(self, X, y, sample_weight=None) -> float:
         y_pred = self.predict(X)
@@ -432,7 +428,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if y is None:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.tokenizer_.international_tokenize(source_text)
+                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -450,7 +446,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.tokenizer_.international_tokenize(source_text)
+                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -517,6 +513,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
+        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -527,7 +524,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             result.shapes_list_ = self.shapes_list_
             result.logits_ = self.logits_
             result.transition_params_ = self.transition_params_
-            result.tokenizer_ = self.tokenizer_
             result.input_tokens_ = self.input_tokens_
             result.sequence_lengths_ = self.sequence_lengths_
             result.additional_features_ = self.additional_features_
@@ -544,6 +540,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
+        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -554,7 +551,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             result.shapes_list_ = self.shapes_list_
             result.logits_ = self.logits_
             result.transition_params_ = self.transition_params_
-            result.tokenizer_ = self.tokenizer_
             result.input_tokens_ = self.input_tokens_
             result.sequence_lengths_ = self.sequence_lengths_
             result.additional_features_ = self.additional_features_
@@ -601,8 +597,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             del self.classes_list_
         if hasattr(self, 'shapes_list_'):
             del self.shapes_list_
-        if hasattr(self, 'tokenizer_'):
-            del self.tokenizer_
         if hasattr(self, 'input_tokens_'):
             del self.input_tokens_
         if hasattr(self, 'sequence_lengths_'):
@@ -641,9 +635,9 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
+            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
-            self.tokenizer_ = NISTTokenizer()
             if self.random_seed is None:
                 self.random_seed = int(round(time.time()))
             random.seed(self.random_seed)
@@ -708,6 +702,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
+            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     @staticmethod
@@ -841,7 +836,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             found_idx = source_text[start_pos:].find(cur_token)
             n = len(cur_token)
             if found_idx < 0:
-                raise ValueError('Text `{0}` cannot be tokenized! Tokens are: {1}'.format(source_text, tokenized_text))
+                raise ValueError('Text `{0}` cannot be tokenized! Token `{1}` cannot be found! Tokens are: {2}'.format(
+                    source_text, cur_token, tokenized_text))
             bounds_of_tokens.append((start_pos + found_idx, start_pos + found_idx + n))
             start_pos += (found_idx + n)
         return bounds_of_tokens

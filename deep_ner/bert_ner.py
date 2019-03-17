@@ -6,6 +6,7 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
+from nltk.tokenize.nist import NISTTokenizer
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
@@ -44,6 +45,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
+        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
@@ -166,7 +168,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive. '
                                      '`do_lower_case` is {0}.'.format(do_lower_case))
-        X_tokenized, y_tokenized, self.shapes_list_ = self.tokenize_all(X, y)
+        X_tokenized, y_tokenized, self.shapes_list_, bounds_of_tokens = self.tokenize_all(X, y)
         self.additional_features_ = tf.placeholder(
             shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
             name='additional_features'
@@ -236,13 +238,15 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 train_index, test_index = split_dataset(X, y_tokenized, test_part=self.validation_fraction,
                                                         n_restarts=4, random_seed=self.random_seed,
                                                         logger=bert_ner_logger)
-                X_train, y_train = self.extend_Xy(
+                X_train, y_train, _ = self.extend_Xy(
                     [X_tokenized[channel_idx][train_index] for channel_idx in range(len(X_tokenized))],
+                    bounds_of_tokens[train_index],
                     y_tokenized[train_index],
                     shuffle=True
                 )
-                X_val, y_val = self.extend_Xy(
+                X_val, y_val, bounds_of_tokens_for_validation = self.extend_Xy(
                     [X_tokenized[channel_idx][test_index] for channel_idx in range(len(X_tokenized))],
+                    bounds_of_tokens[test_index],
                     y_tokenized[test_index],
                     shuffle=True
                 )
@@ -250,19 +254,21 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 texts_val = [X[sample_idx] for sample_idx in test_index]
                 del train_index, test_index
             else:
-                X_train, y_train = self.extend_Xy(X_tokenized, y_tokenized, shuffle=True)
+                X_train, y_train, _ = self.extend_Xy(X_tokenized, bounds_of_tokens, y_tokenized, shuffle=True)
                 X_val = None
                 y_val = None
+                bounds_of_tokens_for_validation = None
                 true_entities_val = None
                 texts_val = None
         else:
             X_train = X_tokenized
             y_train = y_tokenized
+            bounds_of_tokens_for_validation = None
             X_val = None
             y_val = None
             true_entities_val = None
             texts_val = None
-        del X_tokenized, y_tokenized
+        del X_tokenized, y_tokenized, bounds_of_tokens
         n_batches = int(np.ceil(X_train[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -320,10 +326,11 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
                         n_tokens = len(labels_in_text)
-                        tokens = self.tokenizer_.convert_ids_to_tokens(X_val[0][sample_idx][1:(n_tokens - 1)])
-                        bounds_of_tokens = self.calculate_bounds_of_tokens(texts_val[sample_idx], tokens)
-                        new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
-                                                                               labels_in_text[1:(n_tokens - 1)])
+                        new_entities = self.calculate_bounds_of_named_entities(
+                            bounds_of_tokens_for_validation[sample_idx],
+                            self.classes_list_,
+                            labels_in_text[1:(n_tokens - 1)]
+                        )
                         pred_entities_val.append(new_entities)
                     f1_test, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
                                                                  self.classes_list_)
@@ -381,10 +388,11 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
                         n_tokens = len(labels_in_text)
-                        tokens = self.tokenizer_.convert_ids_to_tokens(X_val[0][sample_idx][1:(n_tokens - 1)])
-                        bounds_of_tokens = self.calculate_bounds_of_tokens(texts_val[sample_idx], tokens)
-                        new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
-                                                                               labels_in_text[1:(n_tokens - 1)])
+                        new_entities = self.calculate_bounds_of_named_entities(
+                            bounds_of_tokens_for_validation[sample_idx],
+                            self.classes_list_,
+                            labels_in_text[1:(n_tokens - 1)]
+                        )
                         pred_entities_val.append(new_entities)
                     f1_test, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
                                                                  self.classes_list_)
@@ -405,9 +413,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         )
         self.check_X(X, 'X')
         self.is_fitted()
-        X_tokenized, _, _ = self.tokenize_all(X, shapes_vocabulary=self.shapes_list_)
+        X_tokenized, _, _, bounds_of_tokens = self.tokenize_all(X, shapes_vocabulary=self.shapes_list_)
         n_samples = X_tokenized[0].shape[0]
-        X_tokenized = self.extend_Xy(X_tokenized)
+        X_tokenized, bounds_of_tokens = self.extend_Xy(X_tokenized, bounds_of_tokens)
         n_batches = X_tokenized[0].shape[0] // self.batch_size
         bounds_of_batches = []
         for iteration in range(n_batches):
@@ -433,9 +441,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         recognized_entities_in_texts = []
         for sample_idx, labels_in_text in enumerate(y_pred[0:n_samples]):
             n_tokens = len(labels_in_text)
-            tokens = self.tokenizer_.convert_ids_to_tokens(X_tokenized[0][sample_idx][1:(n_tokens - 1)])
-            bounds_of_tokens = self.calculate_bounds_of_tokens(X[sample_idx], tokens)
-            new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
+            new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens[sample_idx], self.classes_list_,
                                                                    labels_in_text[1:(n_tokens - 1)])
             recognized_entities_in_texts.append(new_entities)
         return recognized_entities_in_texts
@@ -461,14 +467,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             feed_dict[self.y_ph_] = y
         return feed_dict
 
-    def extend_Xy(self, X: List[np.array], y: np.array=None,
-                  shuffle: bool=False) -> Union[List[np.array], Tuple[List[np.array], np.array]]:
+    def extend_Xy(self, X: List[np.array], bounds_of_tokens: np.ndarray, y: np.array=None, shuffle: bool=False) -> \
+            Union[Tuple[List[np.ndarray], np.ndarray], Tuple[List[np.ndarray], np.ndarray, np.ndarray]]:
         n_samples = X[0].shape[0]
         n_extend = n_samples % self.batch_size
         if n_extend == 0:
             if y is None:
-                return X
-            return X, y
+                return X, bounds_of_tokens
+            return X, y, bounds_of_tokens
         n_extend = self.batch_size - n_extend
         X_ext = [
             np.concatenate(
@@ -484,12 +490,17 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             )
             for idx in range(len(X))
         ]
+        bounds_of_tokens_ext = bounds_of_tokens.tolist()
+        bounds_of_tokens_for_last_text = bounds_of_tokens[len(bounds_of_tokens) - 1]
+        bounds_of_tokens_ext += [bounds_of_tokens_for_last_text for _ in range(n_extend)]
+        bounds_of_tokens_ext = np.array(bounds_of_tokens_ext, dtype=object)
+        del bounds_of_tokens_for_last_text
         if y is None:
             if shuffle:
                 indices = np.arange(0, n_samples + n_extend, 1, dtype=np.int32)
                 np.random.shuffle(indices)
-                return [X_ext[idx][indices] for idx in range(len(X_ext))]
-            return X_ext
+                return [X_ext[idx][indices] for idx in range(len(X_ext))], bounds_of_tokens_ext[indices]
+            return X_ext, bounds_of_tokens_ext
         y_ext = np.concatenate(
             (
                 y,
@@ -498,12 +509,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         )
         if shuffle:
             indices = np.arange(0, n_samples + n_extend, 1, dtype=np.int32)
-            return [X_ext[idx][indices] for idx in range(len(X_ext))], y_ext[indices]
-        return X_ext, y_ext
+            return [X_ext[idx][indices] for idx in range(len(X_ext))], y_ext[indices], bounds_of_tokens_ext[indices]
+        return X_ext, y_ext, bounds_of_tokens_ext
 
     def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]=None,
                      shapes_vocabulary: Union[tuple, None]=None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
-                                                                          tuple]:
+                                                                          tuple, np.ndarray]:
         if shapes_vocabulary is not None:
             if len(shapes_vocabulary) < 4:
                 raise ValueError('Shapes vocabulary is wrong!')
@@ -519,56 +530,74 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             np.zeros((len(X), self.max_seq_length), dtype=np.int32),
             np.zeros((len(X), self.max_seq_length, 4), dtype=np.float32)
         ]
-        y_tokenized = None if y is None else np.empty((len(y), self.max_seq_length), dtype=np.int32)
+        all_tokenized_texts = []
+        bounds_of_tokens = []
         n_samples = len(X)
         shapes = []
         shapes_dict = dict()
+        for sample_idx in range(n_samples):
+            source_text = X[sample_idx]
+            tokenized_text = []
+            bounds_of_tokens_for_text = []
+            start_pos = 0
+            for cur_word in self.nltk_tokenizer_.international_tokenize(source_text):
+                found_idx_1 = source_text[start_pos:].find(cur_word)
+                if found_idx_1 < 0:
+                    raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
+                subwords = self.tokenizer_.tokenize(cur_word)
+                if '[UNK]' in subwords:
+                    tokenized_text.append('[UNK]')
+                    bounds_of_tokens_for_text.append((start_pos + found_idx_1, start_pos + found_idx_1 + len(cur_word)))
+                else:
+                    start_pos_2 = 0
+                    for cur_subword in subwords:
+                        if cur_subword.startswith('##'):
+                            subword_len = len(cur_subword) - 2
+                            found_idx_2 = cur_word[start_pos_2:].find(cur_subword[2:])
+                        else:
+                            subword_len = len(cur_subword)
+                            found_idx_2 = cur_word[start_pos_2:].find(cur_subword)
+                        if found_idx_2 < 0:
+                            raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
+                        tokenized_text.append(cur_subword)
+                        bounds_of_tokens_for_text.append(
+                            (
+                                start_pos + found_idx_1 + start_pos_2 + found_idx_2,
+                                start_pos + found_idx_1 + start_pos_2 + found_idx_2 + subword_len
+                            )
+                        )
+                        start_pos_2 += (found_idx_2 + subword_len)
+                start_pos += (found_idx_1 + len(cur_word))
+            if len(tokenized_text) > (self.max_seq_length - 2):
+                tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
+                bounds_of_tokens_for_text = bounds_of_tokens_for_text[:(self.max_seq_length - 2)]
+            shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
+            if shapes_vocabulary is None:
+                for cur_shape in shapes_of_text:
+                    if cur_shape != '[UNK]':
+                        shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
+            shapes.append(shapes_of_text)
+            all_tokenized_texts.append(tokenized_text)
+            bounds_of_tokens.append(tuple(bounds_of_tokens_for_text))
+            token_IDs = self.tokenizer_.convert_tokens_to_ids(['[CLS]'] + tokenized_text + ['[SEP]'])
+            for token_idx in range(len(token_IDs)):
+                X_tokenized[0][sample_idx][token_idx] = token_IDs[token_idx]
+                X_tokenized[1][sample_idx][token_idx] = 1
+                X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx - 1])] = 1.0
         if y is None:
-            for sample_idx in range(n_samples):
-                source_text = X[sample_idx]
-                tokenized_text = self.tokenizer_.tokenize(source_text)
-                shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
-                if shapes_vocabulary is None:
-                    for cur_shape in shapes_of_text:
-                        if cur_shape != '[UNK]':
-                            shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
-                if len(tokenized_text) > (self.max_seq_length - 2):
-                    tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
-                    shapes_of_text = shapes_of_text[:(self.max_seq_length - 2)]
-                tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
-                shapes_of_text = ['[CLS]'] + shapes_of_text + ['[SEP]']
-                shapes.append(shapes_of_text)
-                token_IDs = self.tokenizer_.convert_tokens_to_ids(tokenized_text)
-                for token_idx in range(len(tokenized_text)):
-                    X_tokenized[0][sample_idx][token_idx] = token_IDs[token_idx]
-                    X_tokenized[1][sample_idx][token_idx] = 1
-                    X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx])] = 1.0
+            y_tokenized = None
         else:
+            y_tokenized = np.empty((len(y), self.max_seq_length), dtype=np.int32)
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.tokenizer_.tokenize(source_text)
-                shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
-                if shapes_vocabulary is None:
-                    for cur_shape in shapes_of_text:
-                        if cur_shape != '[UNK]':
-                            shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
-                bounds_of_tokens = self.calculate_bounds_of_tokens(source_text, tokenized_text)
+                tokenized_text = all_tokenized_texts[sample_idx]
+                bounds_of_tokens_for_text = bounds_of_tokens[sample_idx]
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
                     source_text, self.classes_list_, y[sample_idx])
                 y_tokenized[sample_idx] = self.detect_token_labels(
-                    tokenized_text, bounds_of_tokens, indices_of_named_entities, labels_IDs, self.max_seq_length
+                    tokenized_text, bounds_of_tokens_for_text, indices_of_named_entities, labels_IDs,
+                    self.max_seq_length
                 )
-                if len(tokenized_text) > (self.max_seq_length - 2):
-                    tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
-                    shapes_of_text = shapes_of_text[:(self.max_seq_length - 2)]
-                tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
-                shapes_of_text = ['[CLS]'] + shapes_of_text + ['[SEP]']
-                shapes.append(shapes_of_text)
-                token_IDs = self.tokenizer_.convert_tokens_to_ids(tokenized_text)
-                for token_idx in range(len(tokenized_text)):
-                    X_tokenized[0][sample_idx][token_idx] = token_IDs[token_idx]
-                    X_tokenized[1][sample_idx][token_idx] = 1
-                    X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx])] = 1.0
         if shapes_vocabulary is None:
             shapes_vocabulary_ = list(map(
                 lambda it2: it2[0],
@@ -583,15 +612,20 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             shapes_vocabulary_ = shapes_vocabulary
         shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_)), dtype=np.float32)
         for sample_idx in range(n_samples):
+            shape_ID = shapes_vocabulary_.index('[CLS]')
+            shapes_[sample_idx][0][shape_ID] = 1.0
             for token_idx, cur_shape in enumerate(shapes[sample_idx]):
                 if cur_shape in shapes_vocabulary_:
                     shape_ID = shapes_vocabulary_.index(cur_shape)
                 else:
                     shape_ID = len(shapes_vocabulary_) - 1
-                shapes_[sample_idx][token_idx][shape_ID] = 1.0
+                shapes_[sample_idx][token_idx + 1][shape_ID] = 1.0
+            shape_ID = shapes_vocabulary_.index('[SEP]')
+            shapes_[sample_idx][len(shapes[sample_idx]) + 1][shape_ID] = 1.0
         X_tokenized[3] = np.concatenate((X_tokenized[3], shapes_), axis=-1)
         del shapes_, shapes
-        return X_tokenized, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
+        return X_tokenized, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_, \
+               np.array(bounds_of_tokens, dtype=np.object)
 
     def get_params(self, deep=True) -> dict:
         return {'bert_hub_module_handle': self.bert_hub_module_handle, 'finetune_bert': self.finetune_bert,
@@ -615,6 +649,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
+        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -644,6 +679,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
+        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -744,6 +780,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
+            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
             self.tokenizer_ = copy.deepcopy(new_params['tokenizer_'])
@@ -870,6 +907,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
+            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     @staticmethod
@@ -1030,60 +1068,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 (not isinstance(kwargs['verbose'], bool)) and (not isinstance(kwargs['verbose'], np.bool)):
             raise ValueError('`verbose` is wrong! Expected `{0}`, got `{1}`.'.format(
                 type(True), type(kwargs['verbose'])))
-
-    @staticmethod
-    def tokenize_by_character_groups(source_text: str) -> List[str]:
-        start_idx = 0
-        tokens = []
-        for char_idx in range(1, len(source_text)):
-            if source_text[char_idx].isalpha():
-                if not source_text[start_idx].isalpha():
-                    new_token = source_text[start_idx:char_idx].strip()
-                    if len(new_token) > 0:
-                        tokens.append(new_token)
-                    start_idx = char_idx
-            elif source_text[char_idx].isdigit():
-                if not source_text[start_idx].isdigit():
-                    new_token = source_text[start_idx:char_idx].strip()
-                    if len(new_token) > 0:
-                        tokens.append(new_token)
-                    start_idx = char_idx
-            elif source_text[char_idx].isspace():
-                if not source_text[start_idx].isspace():
-                    new_token = source_text[start_idx:char_idx].strip()
-                    if len(new_token) > 0:
-                        tokens.append(new_token)
-                    start_idx = char_idx
-            else:
-                new_token = source_text[start_idx:char_idx].strip()
-                if len(new_token) > 0:
-                    tokens.append(new_token)
-                start_idx = char_idx
-        new_token = source_text[start_idx:].strip()
-        if len(new_token) > 0:
-            tokens.append(new_token)
-        return tokens
-
-    @staticmethod
-    def calculate_bounds_of_tokens(source_text: str, tokenized_text: List[str]) -> List[Tuple[int, int]]:
-        bounds_of_tokens = []
-        start_pos = 0
-        for cur_token in tokenized_text:
-            if cur_token.startswith('[') and cur_token.endswith(']') and cur_token[1:-1].isupper():
-                cur_token_ = BERT_NER.tokenize_by_character_groups(source_text[start_pos:])[0]
-                found_idx = source_text[start_pos:].find(cur_token_)
-                n = len(cur_token_)
-            elif cur_token.startswith('##'):
-                found_idx = source_text[start_pos:].find(cur_token[2:])
-                n = len(cur_token) - 2
-            else:
-                found_idx = source_text[start_pos:].find(cur_token)
-                n = len(cur_token)
-            if found_idx < 0:
-                raise ValueError('Text `{0}` cannot be tokenized! Tokens are: {1}'.format(source_text, tokenized_text))
-            bounds_of_tokens.append((start_pos + found_idx, start_pos + found_idx + n))
-            start_pos += (found_idx + n)
-        return bounds_of_tokens
 
     @staticmethod
     def calculate_bounds_of_named_entities(bounds_of_tokens: List[Tuple[int, int]], classes_list: tuple,
