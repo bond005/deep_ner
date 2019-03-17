@@ -577,13 +577,15 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     if cur_shape != '[UNK]':
                         shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
             shapes.append(shapes_of_text)
-            all_tokenized_texts.append(tokenized_text)
-            bounds_of_tokens.append(tuple(bounds_of_tokens_for_text))
-            token_IDs = self.tokenizer_.convert_tokens_to_ids(['[CLS]'] + tokenized_text + ['[SEP]'])
+            all_tokenized_texts.append(copy.copy(tokenized_text))
+            bounds_of_tokens.append(copy.deepcopy(bounds_of_tokens_for_text))
+            tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
+            token_IDs = self.tokenizer_.convert_tokens_to_ids(tokenized_text)
             for token_idx in range(len(token_IDs)):
                 X_tokenized[0][sample_idx][token_idx] = token_IDs[token_idx]
                 X_tokenized[1][sample_idx][token_idx] = 1
-                X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx - 1])] = 1.0
+                X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx])] = 1.0
+            del bounds_of_tokens_for_text, tokenized_text, token_IDs
         if y is None:
             y_tokenized = None
         else:
