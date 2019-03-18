@@ -120,6 +120,9 @@ class TestQuality(unittest.TestCase):
         self.assertAlmostEqual(recall, 0.784746, places=3)
         self.assertIsInstance(quality_by_entities, dict)
         self.assertEqual({'LOCATION', 'PERSON', 'ORG'}, set(quality_by_entities.keys()))
+        f1_macro = 0.0
+        precision_macro = 0.0
+        recall_macro = 0.0
         for ne_type in quality_by_entities:
             self.assertIsInstance(quality_by_entities[ne_type], tuple)
             self.assertEqual(len(quality_by_entities[ne_type]), 3)
@@ -132,6 +135,16 @@ class TestQuality(unittest.TestCase):
             self.assertGreater(quality_by_entities[ne_type][1], 0.0)
             self.assertLess(quality_by_entities[ne_type][2], 1.0)
             self.assertGreater(quality_by_entities[ne_type][2], 0.0)
+            f1_macro += quality_by_entities[ne_type][0]
+            precision_macro += quality_by_entities[ne_type][1]
+            recall_macro += quality_by_entities[ne_type][2]
+        f1_macro /= float(len(quality_by_entities))
+        precision_macro /= float(len(quality_by_entities))
+        recall_macro /= float(len(quality_by_entities))
+        for ne_type in quality_by_entities:
+            self.assertGreater(abs(quality_by_entities[ne_type][0] - f1_macro), 1e-4)
+            self.assertGreater(abs(quality_by_entities[ne_type][1] - precision_macro), 1e-4)
+            self.assertGreater(abs(quality_by_entities[ne_type][2] - recall_macro), 1e-4)
 
 
 if __name__ == '__main__':

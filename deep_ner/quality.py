@@ -187,7 +187,7 @@ def calculate_prediction_quality(true_entities: Union[list, tuple, np.array],
                     fn_for_ne += (entity_bounds[1] - entity_bounds[0])
             elif ne_class in predicted_entities_[sample_idx]:
                 for entity_bounds in predicted_entities_[sample_idx][ne_class]:
-                    fp_total += (entity_bounds[1] - entity_bounds[0])
+                    fp_for_ne += (entity_bounds[1] - entity_bounds[0])
         tp_total += tp_for_ne
         fp_total += fp_for_ne
         fn_total += fn_for_ne
