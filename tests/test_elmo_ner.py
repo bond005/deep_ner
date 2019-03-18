@@ -1066,7 +1066,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(len(X_train), len(y_pred))
         for sample_idx in range(len(y_pred)):
             self.assertIsInstance(y_pred[sample_idx], dict)
-        f1, precision, recall = calculate_prediction_quality(y_train, y_pred, res.classes_list_)
+        f1, precision, recall, _ = calculate_prediction_quality(y_train, y_pred, res.classes_list_)
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
@@ -1127,7 +1127,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(len(X_train), len(y_pred1))
         for sample_idx in range(len(y_pred1)):
             self.assertIsInstance(y_pred1[sample_idx], dict)
-        f1, precision, recall = calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
+        f1, precision, recall, _ = calculate_prediction_quality(y_train, y_pred1, res.classes_list_)
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
