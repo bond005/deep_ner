@@ -88,10 +88,17 @@ def recognize(factrueval2016_testset_dir: str, split_by_paragraphs: bool, recogn
     print('')
     predicted_entities = recognizer.predict(texts)
     assert len(predicted_entities) == len(true_entities)
-    f1, precision, recall = calculate_prediction_quality(true_entities, predicted_entities, recognizer.classes_list_)
-    print('F1-score is {0:.2%}.'.format(f1))
-    print('Precision is {0:.2%}.'.format(precision))
-    print('Recall is {0:.2%}.'.format(recall))
+    f1, precision, recall, quality_by_entities = calculate_prediction_quality(
+        true_entities, predicted_entities, recognizer.classes_list_)
+    print('All entities:')
+    print('    F1-score is {0:.2%}.'.format(f1))
+    print('    Precision is {0:.2%}.'.format(precision))
+    print('    Recall is {0:.2%}.'.format(recall))
+    for ne_type in sorted(list(quality_by_entities.keys())):
+        print('  {0}'.format(ne_type))
+        print('    F1-score is {0:.2%}.'.format(quality_by_entities[ne_type][0]))
+        print('    Precision is {0:.2%}.'.format(quality_by_entities[ne_type][1]))
+        print('    Recall is {0:.2%}.'.format(quality_by_entities[ne_type][2]))
     results_for_factrueval_2016 = dict()
     for sample_idx, cur_result in enumerate(predicted_entities):
         base_name, paragraph_bounds = additional_info[sample_idx]
