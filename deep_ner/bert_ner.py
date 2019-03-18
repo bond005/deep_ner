@@ -357,7 +357,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         for ne_type in sorted(list(quality_by_entities.keys())):
                             bert_ner_logger.info('    Val. quality for {0:>{1}}:'.format(ne_type, max_text_width))
                             bert_ner_logger.info('      F1={0:>6.4f}, P={1:>6.4f}, R={2:>6.4f})'.format(
-                                f1_test, precision_test, recall_test))
+                                quality_by_entities[ne_type][0], quality_by_entities[ne_type][1],
+                                quality_by_entities[ne_type][2]))
                     del y_pred, pred_entities_val
                 else:
                     if best_acc is None:
