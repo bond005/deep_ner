@@ -109,13 +109,29 @@ class TestQuality(unittest.TestCase):
         X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
         X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
         self.assertEqual(X_true, X_pred)
-        f1, precision, recall = calculate_prediction_quality(y_true, y_pred, ('LOCATION', 'PERSON', 'ORG'))
+        f1, precision, recall, quality_by_entities = calculate_prediction_quality(
+            y_true, y_pred, ('LOCATION', 'PERSON', 'ORG')
+        )
         self.assertIsInstance(f1, float)
         self.assertIsInstance(precision, float)
         self.assertIsInstance(recall, float)
         self.assertAlmostEqual(f1, 0.842037, places=3)
         self.assertAlmostEqual(precision, 0.908352, places=3)
         self.assertAlmostEqual(recall, 0.784746, places=3)
+        self.assertIsInstance(quality_by_entities, dict)
+        self.assertEqual({'LOCATION', 'PERSON', 'ORG'}, set(quality_by_entities.keys()))
+        for ne_type in quality_by_entities:
+            self.assertIsInstance(quality_by_entities[ne_type], tuple)
+            self.assertEqual(len(quality_by_entities[ne_type]), 3)
+            self.assertIsInstance(quality_by_entities[ne_type][0], float)
+            self.assertIsInstance(quality_by_entities[ne_type][1], float)
+            self.assertIsInstance(quality_by_entities[ne_type][2], float)
+            self.assertLess(quality_by_entities[ne_type][0], 1.0)
+            self.assertGreater(quality_by_entities[ne_type][0], 0.0)
+            self.assertLess(quality_by_entities[ne_type][1], 1.0)
+            self.assertGreater(quality_by_entities[ne_type][1], 0.0)
+            self.assertLess(quality_by_entities[ne_type][2], 1.0)
+            self.assertGreater(quality_by_entities[ne_type][2], 0.0)
 
 
 if __name__ == '__main__':

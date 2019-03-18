@@ -199,8 +199,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if self.verbose:
             if X_val is None:
                 elmo_ner_logger.info('Epoch   Train acc.')
-            else:
-                elmo_ner_logger.info('Epoch   Train acc.    Test acc.    Test F1')
         n_epochs_without_improving = 0
         try:
             best_acc = None
@@ -239,8 +237,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
                                                                                labels_in_text)
                         pred_entities_val.append(new_entities)
-                    f1_test, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
-                                                                 self.classes_list_)
+                    f1_test, precision_test, recall_test, quality_by_entities = calculate_prediction_quality(
+                        true_entities_val, pred_entities_val, self.classes_list_)
                     if best_acc is None:
                         best_acc = f1_test
                         saver.save(self.sess_, tmp_model_name)
@@ -252,8 +250,21 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     else:
                         n_epochs_without_improving += 1
                     if self.verbose:
-                        elmo_ner_logger.info('{0:>5}   {1:>10.8f}   {2:>10.8f}   {3:>8.6f}'.format(
-                            epoch, acc_train, acc_test, f1_test))
+                        elmo_ner_logger.info('Epoch {0}'.format(epoch))
+                        elmo_ner_logger.info('  Train acc.: {0: 10.8f}'.format(acc_train))
+                        elmo_ner_logger.info('  Val. acc.:  {0: 10.8f}'.format(acc_test))
+                        elmo_ner_logger.info('  Val. quality for all entities:')
+                        elmo_ner_logger.info('      F1={0:>6.4f}, P={1:>6.4f}, R={2:>6.4f}'.format(
+                            f1_test, precision_test, recall_test))
+                        max_text_width = 0
+                        for ne_type in sorted(list(quality_by_entities.keys())):
+                            text_width = len(ne_type)
+                            if text_width > max_text_width:
+                                max_text_width = text_width
+                        for ne_type in sorted(list(quality_by_entities.keys())):
+                            elmo_ner_logger.info('    Val. quality for {0:>{1}}:'.format(ne_type, max_text_width))
+                            elmo_ner_logger.info('      F1={0:>6.4f}, P={1:>6.4f}, R={2:>6.4f})'.format(
+                                f1_test, precision_test, recall_test))
                     del y_pred, pred_entities_val
                 else:
                     if best_acc is None:
@@ -302,8 +313,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                             new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
                                                                                    labels_in_text)
                             pred_entities_val.append(new_entities)
-                        f1_test, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
-                                                                     self.classes_list_)
+                        f1_test, _, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
+                                                                        self.classes_list_)
                         elmo_ner_logger.info('Best val. F1 is {0:>8.6f}'.format(f1_test))
                         elmo_ner_logger.info('Best val. acc. is {0:>10.8f}'.format(acc_test))
         finally:
