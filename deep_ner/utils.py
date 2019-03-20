@@ -695,7 +695,7 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
                         raise ValueError(err_msg)
                     if entity_end > len(full_text):
                         raise ValueError(err_msg)
-                    if full_text[entity_start:entity_end] != entity_text:
+                    if full_text[entity_start:entity_end].strip() != entity_text.strip():
                         raise ValueError(err_msg)
                     if entity_type in entities_in_text:
                         entities_in_text[entity_type].append((entity_start, entity_end))
