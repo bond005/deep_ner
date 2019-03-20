@@ -12,6 +12,7 @@ from typing import Union
 try:
     from deep_ner.bert_ner import BERT_NER, bert_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
+    from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -54,6 +55,8 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
+            if not split_by_paragraphs:
+                X_train, y_train = divide_dataset_by_sentences(X_train, y_train)
             for sample_idx in range(len(y_train)):
                 new_y_sample = dict()
                 for ne_type in sorted(list(y_train[sample_idx].keys())):

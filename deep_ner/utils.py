@@ -6,7 +6,8 @@ import os
 from typing import Dict, Tuple, List, Union
 import warnings
 
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize, sent_tokenize
+import numpy as np
 
 
 def load_tokens_from_factrueval2016_by_paragraphs(text_file_name: str, tokens_file_name: str) -> \
@@ -725,6 +726,21 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
                         entity_idx += 1
             entities_in_text[entity_type] = copy.deepcopy(bounds_of_entities)
             del bounds_of_entities
+        soft_hyphen_idx = full_text.find('\xad')
+        while soft_hyphen_idx >= 0:
+            full_text = full_text[:soft_hyphen_idx] + full_text[(soft_hyphen_idx + 1):]
+            for entity_type in sorted(list(entities_in_text.keys())):
+                for entity_idx in range(len(entities_in_text[entity_type])):
+                    entity_bounds = entities_in_text[entity_type][entity_idx]
+                    if entity_bounds[0] > soft_hyphen_idx:
+                        entity_bounds = (entity_bounds[0] - 1, entity_bounds[1] - 1)
+                    elif entity_bounds[1] > soft_hyphen_idx:
+                        entity_bounds = (entity_bounds[0], entity_bounds[1] - 1)
+                    entities_in_text[entity_type][entity_idx] = entity_bounds
+            start_pos = soft_hyphen_idx
+            soft_hyphen_idx = full_text[start_pos:].find('\xad')
+            if soft_hyphen_idx >= 0:
+                soft_hyphen_idx += start_pos
         if split_by_paragraphs:
             paragraph_start = 0
             found_idx_1 = full_text.find('\n')
@@ -846,3 +862,106 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
             texts.append(full_text)
             entities.append(entities_in_text)
     return texts, entities
+
+
+def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]) -> \
+        Tuple[Union[list, tuple, np.array], Union[list, tuple, np.array]]:
+    X_new = []
+    y_new = []
+    n_samples = len(X)
+    for sample_idx in range(n_samples):
+        sentences = sent_tokenize(X[sample_idx])
+        start_idx = 0
+        bounds_of_sentences = []
+        for cur_sent in sentences:
+            found_idx = X[sample_idx][start_idx:].find(cur_sent)
+            if found_idx < 0:
+                raise ValueError('The text `{0}` cannot be tokenized by sentences!'.format(X[sample_idx]))
+            found_idx += start_idx
+            bounds_of_sentences.append((found_idx, found_idx + len(cur_sent)))
+            start_idx = (found_idx + len(cur_sent))
+        for entity_type in y[sample_idx].keys():
+            for entity_bounds in y[sample_idx][entity_type]:
+                first_sentence_idx = -1
+                min_distance = None
+                for idx in range(len(bounds_of_sentences)):
+                    if (bounds_of_sentences[idx][0] <= entity_bounds[0]) and \
+                            (entity_bounds[0] < bounds_of_sentences[idx][1]):
+                        first_sentence_idx = idx
+                        break
+                    if entity_bounds[0] < bounds_of_sentences[idx][0]:
+                        if min_distance is None:
+                            min_distance = bounds_of_sentences[idx][0] - entity_bounds[0]
+                            first_sentence_idx = idx
+                        else:
+                            if (bounds_of_sentences[idx][0] - entity_bounds[0]) < min_distance:
+                                min_distance = bounds_of_sentences[idx][0] - entity_bounds[0]
+                                first_sentence_idx = idx
+                if first_sentence_idx < 0:
+                    raise ValueError('The `{0}` entity with bounds {1} cannot be found in the sentence list!'.format(
+                        entity_type, entity_bounds))
+                last_sentence_idx = first_sentence_idx + 1
+                while last_sentence_idx < len(bounds_of_sentences):
+                    if bounds_of_sentences[last_sentence_idx][0] >= entity_bounds[1]:
+                        break
+                    last_sentence_idx += 1
+                bounds_of_united_sentence = (
+                    bounds_of_sentences[first_sentence_idx][0],
+                    bounds_of_sentences[last_sentence_idx - 1][1]
+                )
+                for _ in range(last_sentence_idx - first_sentence_idx - 1):
+                    del bounds_of_sentences[first_sentence_idx]
+                bounds_of_sentences[first_sentence_idx] = bounds_of_united_sentence
+        entities_in_sentences = [dict() for _ in range(len(bounds_of_sentences))]
+        for entity_type in y[sample_idx].keys():
+            for entity_bounds in y[sample_idx][entity_type]:
+                sentence_idx = -1
+                min_distance = None
+                for idx in range(len(bounds_of_sentences)):
+                    if (bounds_of_sentences[idx][0] <= entity_bounds[0]) and \
+                            (entity_bounds[0] < bounds_of_sentences[idx][1]):
+                        sentence_idx = idx
+                        break
+                    if entity_bounds[0] < bounds_of_sentences[idx][0]:
+                        if min_distance is None:
+                            min_distance = bounds_of_sentences[idx][0] - entity_bounds[0]
+                            sentence_idx = idx
+                        else:
+                            if (bounds_of_sentences[idx][0] - entity_bounds[0]) < min_distance:
+                                min_distance = bounds_of_sentences[idx][0] - entity_bounds[0]
+                                sentence_idx = idx
+                if sentence_idx < 0:
+                    raise ValueError('The `{0}` entity with bounds {1} cannot be found in the sentence list!'.format(
+                        entity_type, entity_bounds))
+                if (entity_bounds[0] >= bounds_of_sentences[sentence_idx][0]) and \
+                        (entity_bounds[1] <= bounds_of_sentences[sentence_idx][1]):
+                    new_entity_bounds = entity_bounds
+                elif (entity_bounds[0] < bounds_of_sentences[sentence_idx][0]) and \
+                        (entity_bounds[1] > bounds_of_sentences[sentence_idx][1]):
+                    new_entity_bounds = bounds_of_sentences[sentence_idx]
+                elif entity_bounds[0] < bounds_of_sentences[sentence_idx][0]:
+                    new_entity_bounds = (bounds_of_sentences[sentence_idx][0], entity_bounds[1])
+                else:
+                    new_entity_bounds = (entity_bounds[0], bounds_of_sentences[sentence_idx][1])
+                new_entity_bounds = (
+                    new_entity_bounds[0] - bounds_of_sentences[sentence_idx][0],
+                    new_entity_bounds[1] - bounds_of_sentences[sentence_idx][0],
+                )
+                entities_in_sentences[sentence_idx][entity_type] = \
+                    entities_in_sentences[sentence_idx].get(entity_type, []) + [new_entity_bounds]
+        for sentence_idx in range(len(entities_in_sentences)):
+            for entity_type in entities_in_sentences[sentence_idx].keys():
+                entities_in_sentences[sentence_idx][entity_type] = sorted(
+                    entities_in_sentences[sentence_idx][entity_type]
+                )
+        X_new += [X[sample_idx][sent_start:sent_end] for sent_start, sent_end in bounds_of_sentences]
+        y_new += entities_in_sentences
+    if isinstance(X, tuple):
+        X_new = tuple(X_new)
+    elif isinstance(X, np.ndarray):
+        X_new = np.array(X_new, dtype=object)
+    if isinstance(y, tuple):
+        y_new = tuple(y_new)
+    elif isinstance(y, np.ndarray):
+        y_new = np.array(y_new, dtype=object)
+    return X_new, y_new
