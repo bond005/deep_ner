@@ -1,4 +1,5 @@
 import codecs
+import copy
 import json
 import os
 from typing import Dict, Tuple, List
@@ -493,7 +494,7 @@ def find_paragraph(bounds_of_paragraphs: List[Tuple[int, int]], entity_start_idx
     return paragraph_idx
 
 
-def load_dataset(file_name: str) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
+def load_dataset_from_json(file_name: str) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
 
     def prepare_bounds(source_named_entities: Dict[str, List[List[int]]]) -> Dict[str, List[Tuple[int, int]]]:
         prepared_named_entities = dict()
@@ -641,3 +642,156 @@ def load_dataset(file_name: str) -> Tuple[List[str], List[Dict[str, List[Tuple[i
             X.append(sample_value['text'])
             y.append(prepare_bounds(sample_value['named_entities']))
     return X, y
+
+
+def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=True) -> \
+        Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
+    all_annotation_files = list(filter(lambda it: it.endswith('.ann'), os.listdir(brat_datadir_name)))
+    if len(all_annotation_files) == 0:
+        raise ValueError('There are no annotation files into the directory `{0}`!'.format(brat_datadir_name))
+    all_file_pairs = list()
+    for annotation_file in all_annotation_files:
+        text_file = annotation_file[:-3] + 'txt'
+        if not os.path.isfile(os.path.join(brat_datadir_name, text_file)):
+            raise ValueError('The annotation file `{0}` has not a corresponding text file!'.format(annotation_file))
+        all_file_pairs.append(
+            (
+                os.path.join(brat_datadir_name, text_file),
+                os.path.join(brat_datadir_name, annotation_file)
+            )
+        )
+    del all_annotation_files
+    texts = []
+    entities = []
+    for text_file, annotation_file in all_file_pairs:
+        with codecs.open(text_file, mode='r', encoding='utf-8', errors='ignore') as fp:
+            full_text = fp.read()
+        entities_in_text = dict()
+        with codecs.open(annotation_file, mode='r', encoding='utf-8', errors='ignore') as fp:
+            cur_line = fp.readline()
+            line_idx = 1
+            while len(cur_line) > 0:
+                prep_line = cur_line.strip()
+                if len(prep_line) > 0:
+                    err_msg = 'File `{0}`: line {1} is wrong!'.format(annotation_file, line_idx)
+                    parts_of_line = prep_line.split('\t')
+                    if len(parts_of_line) != 3:
+                        raise ValueError(err_msg)
+                    entity_text = parts_of_line[2]
+                    entity_description = parts_of_line[1]
+                    parts_of_description = entity_description.split()
+                    if len(parts_of_description) != 3:
+                        raise ValueError(err_msg)
+                    entity_type = parts_of_description[0]
+                    try:
+                        entity_start = int(parts_of_description[1])
+                        entity_end = int(parts_of_description[2])
+                    except:
+                        entity_start = -1
+                        entity_end = -1
+                    if (entity_start < 0) or (entity_end <= entity_start):
+                        raise ValueError(err_msg)
+                    if entity_end > len(full_text):
+                        raise ValueError(err_msg)
+                    if full_text[entity_start:entity_end] != entity_text:
+                        raise ValueError(err_msg)
+                    if entity_type in entities_in_text:
+                        entities_in_text[entity_type].append((entity_start, entity_end))
+                    else:
+                        entities_in_text[entity_type] = [(entity_start, entity_end)]
+                cur_line = fp.readline()
+                line_idx += 1
+        for entity_type in sorted(list(entities_in_text.keys())):
+            bounds_of_entities = sorted(entities_in_text[entity_type], key=lambda it: (it[0], it[1]))
+            if len(bounds_of_entities) > 1:
+                for entity_idx in range(1, len(bounds_of_entities)):
+                    if bounds_of_entities[entity_idx - 1][1] > bounds_of_entities[entity_idx][0]:
+                        raise ValueError('File `{0}`, entity type `{1}`: bounds of entities are overlapped!'.format(
+                            annotation_file, entity_type))
+            entities_in_text[entity_type] = copy.deepcopy(bounds_of_entities)
+            del bounds_of_entities
+        if split_by_paragraphs:
+            paragraph_start = 0
+            found_idx_1 = full_text.find('\n')
+            found_idx_2 = full_text.find('\r')
+            if (found_idx_1 >= 0) and (found_idx_2 >= 0):
+                paragraph_end = min(found_idx_1, found_idx_2)
+            elif found_idx_1 >= 0:
+                paragraph_end = found_idx_1
+            elif found_idx_2 >= 0:
+                paragraph_end = found_idx_2
+            else:
+                paragraph_end = -1
+            if paragraph_end < 0:
+                full_text = full_text.replace('\n', ' ').replace('\r', ' ')
+                texts.append(full_text)
+                entities.append(entities_in_text)
+            else:
+                while paragraph_end >= 0:
+                    entities_in_paragraph = dict()
+                    for entity_type in entities_in_text:
+                        for entity_bounds in entities_in_text[entity_type]:
+                            if entity_bounds[0] >= paragraph_end:
+                                break
+                            if entity_bounds[1] <= paragraph_start:
+                                continue
+                            if (entity_bounds[0] >= paragraph_start) and (entity_bounds[1] <= paragraph_end):
+                                entities_in_paragraph[entity_type] = entities_in_paragraph.get(entity_type, []) + \
+                                                                     [
+                                                                         (
+                                                                             entity_bounds[0] - paragraph_start,
+                                                                             entity_bounds[1] - paragraph_start
+                                                                         )
+                                                                     ]
+                            else:
+                                raise ValueError('File `{0}`, entity type `{1}`: bounds of entities are between '
+                                                 'paragraphs!'.format(annotation_file, entity_type))
+                    texts.append(full_text[paragraph_start:paragraph_end])
+                    entities.append(entities_in_paragraph)
+                    paragraph_start = -1
+                    idx = paragraph_end + 1
+                    while idx < len(full_text):
+                        if full_text[idx] not in {'\r', '\n'}:
+                            break
+                        idx += 1
+                    if idx < len(full_text):
+                        paragraph_start = idx
+                        found_idx_1 = full_text[paragraph_start:].find('\n')
+                        found_idx_2 = full_text[paragraph_start:].find('\r')
+                        if (found_idx_1 >= 0) and (found_idx_2 >= 0):
+                            paragraph_end = min(found_idx_1, found_idx_2) + paragraph_start
+                        elif found_idx_1 >= 0:
+                            paragraph_end = found_idx_1 + paragraph_start
+                        elif found_idx_2 >= 0:
+                            paragraph_end = found_idx_2 + paragraph_start
+                        else:
+                            paragraph_end = -1
+                    else:
+                        paragraph_end = -1
+                if paragraph_start >= 0:
+                    paragraph_end = len(full_text)
+                    entities_in_paragraph = dict()
+                    for entity_type in entities_in_text:
+                        for entity_bounds in entities_in_text[entity_type]:
+                            if entity_bounds[0] >= paragraph_end:
+                                break
+                            if entity_bounds[1] <= paragraph_start:
+                                continue
+                            if (entity_bounds[0] >= paragraph_start) and (entity_bounds[1] <= paragraph_end):
+                                entities_in_paragraph[entity_type] = entities_in_paragraph.get(entity_type, []) + \
+                                                                     [
+                                                                         (
+                                                                             entity_bounds[0] - paragraph_start,
+                                                                             entity_bounds[1] - paragraph_start
+                                                                         )
+                                                                     ]
+                            else:
+                                raise ValueError('File `{0}`, entity type `{1}`: bounds of entities are between '
+                                                 'paragraphs!'.format(annotation_file, entity_type))
+                    texts.append(full_text[paragraph_start:paragraph_end])
+                    entities.append(entities_in_paragraph)
+        else:
+            full_text = full_text.replace('\n', ' ').replace('\r', ' ')
+            texts.append(full_text)
+            entities.append(entities_in_text)
+    return texts, entities

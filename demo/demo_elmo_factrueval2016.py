@@ -12,12 +12,12 @@ from nltk.tokenize.nist import NISTTokenizer
 
 try:
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 
 
@@ -33,7 +33,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         temp_json_name = tempfile.NamedTemporaryFile(mode='w').name
         try:
             factrueval2016_to_json(factrueval2016_devset_dir, temp_json_name, split_by_paragraphs)
-            X, y = load_dataset(temp_json_name)
+            X, y = load_dataset_from_json(temp_json_name)
         finally:
             if os.path.isfile(temp_json_name):
                 os.remove(temp_json_name)
@@ -72,7 +72,7 @@ def recognize(factrueval2016_testset_dir: str, split_by_paragraphs: bool, recogn
         factrueval2016_to_json(factrueval2016_testset_dir, temp_json_name, split_by_paragraphs)
         with codecs.open(temp_json_name, mode='r', encoding='utf-8', errors='ignore') as fp:
             data_for_testing = json.load(fp)
-        _, true_entities = load_dataset(temp_json_name)
+        _, true_entities = load_dataset_from_json(temp_json_name)
     finally:
         if os.path.isfile(temp_json_name):
             os.remove(temp_json_name)

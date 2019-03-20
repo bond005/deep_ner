@@ -1,15 +1,16 @@
 import os
+import re
 import sys
 import unittest
 
 
 try:
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
 
@@ -286,7 +287,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(true_text, loaded_text)
         self.assertEqual(true_bounds_of_paragraphs, loaded_paragraph_bounds)
 
-    def test_load_dataset_positive01(self):
+    def test_load_dataset_from_json_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         file_name = os.path.join(base_dir, 'dataset_with_paragraphs.json')
         X_true = [
@@ -732,7 +733,7 @@ class TestUtils(unittest.TestCase):
                 "ORG": [(98, 121)]
             }
         ]
-        X_loaded, y_loaded = load_dataset(file_name)
+        X_loaded, y_loaded = load_dataset_from_json(file_name)
         self.assertIsInstance(X_loaded, list)
         self.assertIsInstance(y_loaded, list)
         self.assertEqual(len(X_true), len(X_loaded))
@@ -747,7 +748,7 @@ class TestUtils(unittest.TestCase):
                 for entity_idx in range(len(y_true[sample_idx][ne_type])):
                     self.assertEqual(y_true[sample_idx][ne_type][entity_idx], y_loaded[sample_idx][ne_type][entity_idx])
 
-    def test_load_dataset_positive02(self):
+    def test_load_dataset_from_json_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         file_name = os.path.join(base_dir, 'dataset_without_paragraphs.json')
         X_true = [
@@ -1193,7 +1194,7 @@ class TestUtils(unittest.TestCase):
                 "ORG": [(98, 121)]
             }
         ]
-        X_loaded, y_loaded = load_dataset(file_name)
+        X_loaded, y_loaded = load_dataset_from_json(file_name)
         self.assertIsInstance(X_loaded, list)
         self.assertIsInstance(y_loaded, list)
         self.assertEqual(len(X_true), len(X_loaded))
@@ -1208,6 +1209,153 @@ class TestUtils(unittest.TestCase):
                                  msg='Sample {0}'.format(sample_idx))
                 for entity_idx in range(len(y_true[sample_idx][ne_type])):
                     self.assertEqual(y_true[sample_idx][ne_type][entity_idx], y_loaded[sample_idx][ne_type][entity_idx])
+
+    def test_load_dataset_from_brat_positive01(self):
+        true_texts = [
+            'Россия рассчитывает на конструктивное воздействие США на Грузию    04/08/2008 12:08    МОСКВА, 4 авг - '
+            'РИА Новости. Россия рассчитывает, что США воздействуют на Тбилиси в связи с обострением ситуации в зоне '
+            'грузино-осетинского конфликта. Об этом статс-секретарь - заместитель министра иностранных дел России '
+            'Григорий Карасин заявил в телефонном разговоре с заместителем госсекретаря США Дэниэлом Фридом.    "С '
+            'российской стороны выражена глубокая озабоченность в связи с новым витком напряженности вокруг Южной '
+            'Осетии, противозаконными действиями грузинской стороны по наращиванию своих вооруженных сил в регионе, '
+            'бесконтрольным строительством фортификационных сооружений", - говорится в сообщении.    "Россия уже '
+            'призвала Тбилиси к ответственной линии и рассчитывает также на конструктивное воздействие со стороны '
+            'Вашингтона", - сообщил МИД России. ',
+            'Комиссар СЕ критикует ограничительную политику в отношении беженцев в европейских странах    05/08/2008 '
+            '10:32    МОСКВА, 5 августа /Новости-Грузия/.  Проводимая в европейских странах ограничительная политика в '
+            'отношении беженцев нарушает ряд международных стандартов, в частности, право на воссоединение семей, '
+            'заявляет Комиссар Совета Европы по правам человека Томас Хаммарберг (Thomas Hammarberg) в размещенном на '
+            'его сайте еженедельном комментарии.    "Ограничительная политика в отношении беженцев в европейских '
+            'странах уменьшает возможности воссоединения разделенных семей", - полагает он.    По сообщению РИА '
+            'Новости, Хаммарберг констатирует, что в последнее время "правительства попытались ограничить приезд '
+            'близких родственников к тем беженцам, которые уже проживают в стране".    Комиссар не называет конкретных '
+            'стран, одновременно отмечая, что в ряде случаев подобная линия привела "к неоправданным человеческим '
+            'страданиям, когда члены семьи, зависящие друг от друга, оказались разделенными".    "Такая политика '
+            'противоречит праву на воссоединение семей, как это предусмотрено некоторыми международными '
+            'стандартами", - замечает он.    Комиссар Совета Европы призывает страны учитывать в политике, проводимой '
+            'в отношении беженцев, положения о семье, принятые в рамках ООН и ЕС.'
+        ]
+        true_entities = [
+            {
+                'LOC': [(0, 6), (50, 53), (57, 63), (87, 93), (116, 122), (141, 144), (161, 168), (301, 307),
+                        (383, 386), (505, 517), (703, 709), (723, 730), (815, 825), (842, 848)],
+                'PER': [(308, 324), (387, 402)],
+                'ORG': [(103, 114), (838, 841)]
+            },
+            {
+                'LOC': [(113, 119), (1283, 1285)],
+                'PER': [(362, 398), (624, 634)],
+                'ORG': [(9, 11), (132, 146), (329, 342), (611, 622), (1154, 1167), (1277, 1280)]
+            }
+        ]
+        loaded_texts, loaded_entities = load_dataset_from_brat(
+            os.path.join(os.path.dirname(__file__), 'testdata', 'brat_data'),
+            split_by_paragraphs=False
+        )
+        self.assertIsInstance(loaded_texts, list)
+        self.assertIsInstance(loaded_entities, list)
+        self.assertEqual(true_texts, loaded_texts)
+        self.assertEqual(len(true_entities), len(loaded_entities))
+        for sample_idx in range(len(true_entities)):
+            self.assertIsInstance(loaded_entities[sample_idx], dict)
+            self.assertEqual(set(true_entities[sample_idx].keys()), set(loaded_entities[sample_idx].keys()))
+            for ne_type in true_entities[sample_idx]:
+                self.assertEqual(true_entities[sample_idx][ne_type], loaded_entities[sample_idx][ne_type])
+
+    def test_load_dataset_from_brat_positive02(self):
+        true_texts = [
+            'Россия рассчитывает на конструктивное воздействие США на Грузию',
+            '04/08/2008 12:08',
+            'МОСКВА, 4 авг - РИА Новости. Россия рассчитывает, что США воздействуют на Тбилиси в связи с обострением '
+            'ситуации в зоне грузино-осетинского конфликта. Об этом статс-секретарь - заместитель министра иностранных '
+            'дел России Григорий Карасин заявил в телефонном разговоре с заместителем госсекретаря США Дэниэлом '
+            'Фридом.',
+            '"С российской стороны выражена глубокая озабоченность в связи с новым витком напряженности вокруг Южной '
+            'Осетии, противозаконными действиями грузинской стороны по наращиванию своих вооруженных сил в регионе, '
+            'бесконтрольным строительством фортификационных сооружений", - говорится в сообщении.',
+            '"Россия уже призвала Тбилиси к ответственной линии и рассчитывает также на конструктивное воздействие со '
+            'стороны Вашингтона", - сообщил МИД России. ',
+            'Комиссар СЕ критикует ограничительную политику в отношении беженцев в европейских странах',
+            '05/08/2008 10:32',
+            'МОСКВА, 5 августа /Новости-Грузия/.  Проводимая в европейских странах ограничительная политика в '
+            'отношении беженцев нарушает ряд международных стандартов, в частности, право на воссоединение семей, '
+            'заявляет Комиссар Совета Европы по правам человека Томас Хаммарберг (Thomas Hammarberg) в размещенном на '
+            'его сайте еженедельном комментарии.',
+            '"Ограничительная политика в отношении беженцев в европейских странах уменьшает возможности воссоединения '
+            'разделенных семей", - полагает он.',
+            'По сообщению РИА Новости, Хаммарберг констатирует, что в последнее время "правительства попытались '
+            'ограничить приезд близких родственников к тем беженцам, которые уже проживают в стране".',
+            'Комиссар не называет конкретных стран, одновременно отмечая, что в ряде случаев подобная линия привела "к '
+            'неоправданным человеческим страданиям, когда члены семьи, зависящие друг от друга, оказались '
+            'разделенными".',
+            '"Такая политика противоречит праву на воссоединение семей, как это предусмотрено некоторыми '
+            'международными стандартами", - замечает он.',
+            'Комиссар Совета Европы призывает страны учитывать в политике, проводимой в отношении беженцев, положения '
+            'о семье, принятые в рамках ООН и ЕС.'
+        ]
+        true_entities = [
+            {
+                'LOC': [(0, 6), (50, 53), (57, 63)]
+            },
+            dict(),
+            {
+                'PER': [(221, 237), (300, 315)],
+                'LOC': [(0, 6), (29, 35), (54, 57), (74, 81), (214, 220), (296, 299)],
+                'ORG': [(16, 27)]
+            },
+            {
+                'LOC': [(98, 110)]
+            },
+            {
+                'LOC': [(1, 7), (21, 28), (113, 123), (140, 146)],
+                'ORG': [(136, 139)]
+            },
+            {
+                'ORG': [(9, 11)]
+            },
+            dict(),
+            {
+                'LOC': [(0, 6)],
+                'PER': [(249, 285)],
+                'ORG': [(19, 33), (216, 229)]
+            },
+            dict(),
+            {
+                'PER': [(26, 36)],
+                'ORG': [(13, 24)]
+            },
+            dict(),
+            dict(),
+            {
+                'LOC': [(138, 140)],
+                'ORG': [(9, 22), (132, 135)]
+            }
+        ]
+        loaded_texts, loaded_entities = load_dataset_from_brat(
+            os.path.join(os.path.dirname(__file__), 'testdata', 'brat_data'),
+            split_by_paragraphs=True
+        )
+        self.assertIsInstance(loaded_texts, list)
+        self.assertIsInstance(loaded_entities, list)
+        self.assertEqual(true_texts, loaded_texts)
+        self.assertEqual(len(true_entities), len(loaded_entities))
+        for sample_idx in range(len(true_entities)):
+            self.assertIsInstance(loaded_entities[sample_idx], dict)
+            self.assertEqual(set(true_entities[sample_idx].keys()), set(loaded_entities[sample_idx].keys()))
+            for ne_type in true_entities[sample_idx]:
+                self.assertEqual(true_entities[sample_idx][ne_type], loaded_entities[sample_idx][ne_type])
+
+    def test_load_dataset_from_brat_negative01(self):
+        brat_datadir_name = os.path.join(os.path.dirname(__file__), 'testdata')
+        true_err_msg = re.escape('There are no annotation files into the directory `{0}`!'.format(brat_datadir_name))
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            _, _, = load_dataset_from_brat(brat_datadir_name)
+
+    def test_load_dataset_from_brat_negative02(self):
+        brat_datadir_name = os.path.join(os.path.dirname(__file__), 'testdata', 'bad_brat_data')
+        true_err_msg = re.escape('The annotation file `002.ann` has not a corresponding text file!')
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            _, _, = load_dataset_from_brat(brat_datadir_name)
 
 
 if __name__ == '__main__':

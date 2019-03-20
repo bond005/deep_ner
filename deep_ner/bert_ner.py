@@ -75,7 +75,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             del self.sess_
         tf.reset_default_graph()
 
-    def fit(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]):
+    def fit(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array],
+            validation_data: Union[None, Tuple[Union[list, tuple, np.array], Union[list, tuple, np.array]]]=None):
         self.check_params(
             bert_hub_module_handle=self.bert_hub_module_handle, finetune_bert=self.finetune_bert,
             lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
@@ -112,6 +113,31 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             self.random_seed = int(round(time.time()))
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
+        if validation_data is None:
+            if self.validation_fraction > 0.0:
+                train_index, test_index = split_dataset(y, self.validation_fraction, logger=bert_ner_logger)
+                X_train_ = [X[idx] for idx in train_index]
+                y_train_ = [y[idx] for idx in train_index]
+                X_val_ = [X[idx] for idx in test_index]
+                y_val_ = [y[idx] for idx in test_index]
+                del train_index, test_index
+            else:
+                X_train_ = X
+                y_train_ = y
+                X_val_ = None
+                y_val_ = None
+        else:
+            if (not isinstance(validation_data, tuple)) and (not isinstance(validation_data, list)):
+                raise ValueError('')
+            if len(validation_data) != 2:
+                raise ValueError('')
+            classes_list_for_validation = self.check_Xy(validation_data[0], 'X_val', validation_data[1], 'y_val')
+            if not (set(classes_list_for_validation) <= set(self.classes_list_)):
+                raise ValueError('')
+            X_train_ = X
+            y_train_ = y
+            X_val_ = validation_data[0]
+            y_val_ = validation_data[1]
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
         self.sess_ = tf.Session(config=config)
@@ -168,7 +194,20 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive. '
                                      '`do_lower_case` is {0}.'.format(do_lower_case))
-        X_tokenized, y_tokenized, self.shapes_list_, bounds_of_tokens = self.tokenize_all(X, y)
+        X_train_tokenized, y_train_tokenized, self.shapes_list_, bounds_of_tokens_for_training = self.tokenize_all(
+            X_train_, y_train_)
+        X_train_tokenized, y_train_tokenized, _ = self.extend_Xy(
+            X_train_tokenized, bounds_of_tokens_for_training, y_train_tokenized, shuffle=True)
+        del bounds_of_tokens_for_training
+        if (X_val_ is not None) and (y_val_ is not None):
+            X_val_tokenized, y_val_tokenized, _, bounds_of_tokens_for_validation = self.tokenize_all(
+                X_val_, y_val_, shapes_vocabulary=self.shapes_list_)
+            X_val_tokenized, y_val_tokenized, bounds_of_tokens_for_validation = self.extend_Xy(
+                X_val_tokenized, bounds_of_tokens_for_validation, y_val_tokenized, shuffle=False)
+        else:
+            X_val_tokenized = None
+            y_val_tokenized = None
+            bounds_of_tokens_for_validation = None
         self.additional_features_ = tf.placeholder(
             shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
             name='additional_features'
@@ -232,64 +271,27 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                                            self.transition_params_)
             seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, sequence_lengths, self.transition_params_)
             accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
-        if self.validation_fraction is not None:
-            n_validation = int(round(len(X) * self.validation_fraction))
-            if n_validation > 0:
-                train_index, test_index = split_dataset(X, y_tokenized, test_part=self.validation_fraction,
-                                                        n_restarts=4, random_seed=self.random_seed,
-                                                        logger=bert_ner_logger)
-                X_train, y_train, _ = self.extend_Xy(
-                    [X_tokenized[channel_idx][train_index] for channel_idx in range(len(X_tokenized))],
-                    bounds_of_tokens[train_index],
-                    y_tokenized[train_index],
-                    shuffle=True
-                )
-                X_val, y_val, bounds_of_tokens_for_validation = self.extend_Xy(
-                    [X_tokenized[channel_idx][test_index] for channel_idx in range(len(X_tokenized))],
-                    bounds_of_tokens[test_index],
-                    y_tokenized[test_index],
-                    shuffle=True
-                )
-                true_entities_val = [y[sample_idx] for sample_idx in test_index]
-                texts_val = [X[sample_idx] for sample_idx in test_index]
-                del train_index, test_index
-            else:
-                X_train, y_train, _ = self.extend_Xy(X_tokenized, bounds_of_tokens, y_tokenized, shuffle=True)
-                X_val = None
-                y_val = None
-                bounds_of_tokens_for_validation = None
-                true_entities_val = None
-                texts_val = None
-        else:
-            X_train = X_tokenized
-            y_train = y_tokenized
-            bounds_of_tokens_for_validation = None
-            X_val = None
-            y_val = None
-            true_entities_val = None
-            texts_val = None
-        del X_tokenized, y_tokenized, bounds_of_tokens
-        n_batches = int(np.ceil(X_train[0].shape[0] / float(self.batch_size)))
+        n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
             batch_start = iteration * self.batch_size
-            batch_end = min(batch_start + self.batch_size, X_train[0].shape[0])
+            batch_end = min(batch_start + self.batch_size, X_train_tokenized[0].shape[0])
             bounds_of_batches_for_training.append((batch_start,  batch_end))
-        if X_val is None:
+        if X_val_tokenized is None:
             bounds_of_batches_for_validation = None
         else:
-            n_batches = int(np.ceil(X_val[0].shape[0] / float(self.batch_size)))
+            n_batches = int(np.ceil(X_val_tokenized[0].shape[0] / float(self.batch_size)))
             bounds_of_batches_for_validation = []
             for iteration in range(n_batches):
                 batch_start = iteration * self.batch_size
-                batch_end = min(batch_start + self.batch_size, X_val[0].shape[0])
+                batch_end = min(batch_start + self.batch_size, X_val_tokenized[0].shape[0])
                 bounds_of_batches_for_validation.append((batch_start, batch_end))
         init = tf.global_variables_initializer()
         saver = tf.train.Saver()
         init.run(session=self.sess_)
         tmp_model_name = self.get_temp_model_name()
         if self.verbose:
-            if X_val is None:
+            if X_val_tokenized is None:
                 bert_ner_logger.info('Epoch   Train acc.')
         n_epochs_without_improving = 0
         try:
@@ -298,8 +300,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 random.shuffle(bounds_of_batches_for_training)
                 feed_dict_for_batch = None
                 for cur_batch in bounds_of_batches_for_training:
-                    X_batch = [X_train[channel_idx][cur_batch[0]:cur_batch[1]] for channel_idx in range(len(X_train))]
-                    y_batch = y_train[cur_batch[0]:cur_batch[1]]
+                    X_batch = [X_train_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
+                               for channel_idx in range(len(X_train_tokenized))]
+                    y_batch = y_train_tokenized[cur_batch[0]:cur_batch[1]]
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     self.sess_.run(train_op, feed_dict=feed_dict_for_batch)
                 acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
@@ -307,8 +310,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     acc_test = 0.0
                     y_pred = []
                     for cur_batch in bounds_of_batches_for_validation:
-                        X_batch = [X_val[channel_idx][cur_batch[0]:cur_batch[1]] for channel_idx in range(len(X_val))]
-                        y_batch = y_val[cur_batch[0]:cur_batch[1]]
+                        X_batch = [X_val_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
+                                   for channel_idx in range(len(X_val_tokenized))]
+                        y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params, mask = self.sess_.run(
                             [accuracy, self.logits_, self.transition_params_, self.input_mask_],
@@ -320,9 +324,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             logit = logit[:int(sequence_length)]
                             viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
                             y_pred += [viterbi_seq]
-                    acc_test /= float(X_val[0].shape[0])
+                    acc_test /= float(X_val_tokenized[0].shape[0])
                     pred_entities_val = []
-                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
+                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
                         new_entities = self.calculate_bounds_of_named_entities(
                             bounds_of_tokens_for_validation[sample_idx],
@@ -331,7 +335,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         )
                         pred_entities_val.append(new_entities)
                     f1_test, precision_test, recall_test, quality_by_entities = calculate_prediction_quality(
-                        true_entities_val, pred_entities_val, self.classes_list_)
+                        y_val_, pred_entities_val, self.classes_list_)
                     if best_acc is None:
                         best_acc = f1_test
                         saver.save(self.sess_, tmp_model_name)
@@ -383,8 +387,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     acc_test = 0.0
                     y_pred = []
                     for cur_batch in bounds_of_batches_for_validation:
-                        X_batch = [X_val[channel_idx][cur_batch[0]:cur_batch[1]] for channel_idx in range(len(X_val))]
-                        y_batch = y_val[cur_batch[0]:cur_batch[1]]
+                        X_batch = [X_val_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
+                                   for channel_idx in range(len(X_val_tokenized))]
+                        y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params, mask = self.sess_.run(
                             [accuracy, self.logits_, self.transition_params_, self.input_mask_],
@@ -396,9 +401,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             logit = logit[:int(sequence_length)]
                             viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
                             y_pred += [viterbi_seq]
-                    acc_test /= float(X_val[0].shape[0])
+                    acc_test /= float(X_val_tokenized[0].shape[0])
                     pred_entities_val = []
-                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(texts_val)]):
+                    for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
                         new_entities = self.calculate_bounds_of_named_entities(
                             bounds_of_tokens_for_validation[sample_idx],
@@ -406,7 +411,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             labels_in_text[1:(n_tokens - 1)]
                         )
                         pred_entities_val.append(new_entities)
-                    f1_test, _, _, _ = calculate_prediction_quality(true_entities_val, pred_entities_val,
+                    f1_test, _, _, _ = calculate_prediction_quality(y_val_, pred_entities_val,
                                                                     self.classes_list_)
                     bert_ner_logger.info('Best val. F1 is {0:>8.6f}'.format(f1_test))
                     bert_ner_logger.info('Best val. acc. is {0:>10.8f}'.format(acc_test))
