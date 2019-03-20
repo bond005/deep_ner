@@ -325,6 +325,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
                             y_pred += [viterbi_seq]
                     acc_test /= float(X_val_tokenized[0].shape[0])
+                    if self.verbose:
+                        bert_ner_logger.info('Epoch {0}'.format(epoch))
+                        bert_ner_logger.info('  Train acc.: {0: 10.8f}'.format(acc_train))
+                        bert_ner_logger.info('  Val. acc.:  {0: 10.8f}'.format(acc_test))
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
@@ -347,9 +351,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     else:
                         n_epochs_without_improving += 1
                     if self.verbose:
-                        bert_ner_logger.info('Epoch {0}'.format(epoch))
-                        bert_ner_logger.info('  Train acc.: {0: 10.8f}'.format(acc_train))
-                        bert_ner_logger.info('  Val. acc.:  {0: 10.8f}'.format(acc_test))
                         bert_ner_logger.info('  Val. quality for all entities:')
                         bert_ner_logger.info('      F1={0:>6.4f}, P={1:>6.4f}, R={2:>6.4f}'.format(
                             f1_test, precision_test, recall_test))
