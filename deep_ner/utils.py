@@ -1,8 +1,10 @@
 import codecs
 import copy
 import json
+from logging import Logger
 import os
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Union
+import warnings
 
 from nltk.tokenize import word_tokenize
 
@@ -644,8 +646,8 @@ def load_dataset_from_json(file_name: str) -> Tuple[List[str], List[Dict[str, Li
     return X, y
 
 
-def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=True) -> \
-        Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
+def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=True,
+                           log: Union[Logger, None]=None) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
     all_annotation_files = list(filter(lambda it: it.endswith('.ann'), os.listdir(brat_datadir_name)))
     if len(all_annotation_files) == 0:
         raise ValueError('There are no annotation files into the directory `{0}`!'.format(brat_datadir_name))
@@ -704,10 +706,23 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
         for entity_type in sorted(list(entities_in_text.keys())):
             bounds_of_entities = sorted(entities_in_text[entity_type], key=lambda it: (it[0], it[1]))
             if len(bounds_of_entities) > 1:
-                for entity_idx in range(1, len(bounds_of_entities)):
+                entity_idx = 1
+                while entity_idx < len(bounds_of_entities):
                     if bounds_of_entities[entity_idx - 1][1] > bounds_of_entities[entity_idx][0]:
-                        raise ValueError('File `{0}`, entity type `{1}`: bounds of entities are overlapped!'.format(
-                            annotation_file, entity_type))
+                        if log is None:
+                            warnings.warn('File `{0}`, entity type `{1}`: bounds of entities are overlapped!'.format(
+                                annotation_file, entity_type))
+                        else:
+                            log.warning('File `{0}`, entity type `{1}`: bounds of entities are overlapped!'.format(
+                                annotation_file, entity_type))
+                        if bounds_of_entities[entity_idx - 1][1] >= bounds_of_entities[entity_idx][1]:
+                            del bounds_of_entities[entity_idx]
+                        else:
+                            bounds_of_entities[entity_idx] = (bounds_of_entities[entity_idx - 1][1],
+                                                              bounds_of_entities[entity_idx][1])
+                            entity_idx += 1
+                    else:
+                        entity_idx += 1
             entities_in_text[entity_type] = copy.deepcopy(bounds_of_entities)
             del bounds_of_entities
         if split_by_paragraphs:

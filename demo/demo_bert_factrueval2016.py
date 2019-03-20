@@ -54,6 +54,17 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
+            for sample_idx in range(len(y_train)):
+                new_y_sample = dict()
+                for ne_type in sorted(list(y_train[sample_idx].keys())):
+                    if ne_type == 'PER':
+                        new_y_sample['PERSON'] = y_train[sample_idx][ne_type]
+                    elif ne_type == 'LOC':
+                        new_y_sample['LOCATION'] = y_train[sample_idx][ne_type]
+                    else:
+                        new_y_sample[ne_type] = y_train[sample_idx][ne_type]
+                y_train[sample_idx] = new_y_sample
+                del new_y_sample
             print('The Collection3 data for training have been loaded...')
             print('Number of samples is {0}.'.format(len(y_train)))
             print('')
