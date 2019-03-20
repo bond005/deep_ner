@@ -6,23 +6,25 @@ import os
 import pickle
 import sys
 import tempfile
+from typing import Union
 
 from nltk.tokenize.nist import NISTTokenizer
 
 
 try:
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
     from deep_ner.quality import calculate_prediction_quality
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
-          batch_size: int, lr: float, gpu_memory_frac: float, model_name: str) -> ELMo_NER:
+          batch_size: int, lr: float, gpu_memory_frac: float, model_name: str,
+          collection3_dir: Union[str, None]=None) -> ELMo_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -37,7 +39,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         finally:
             if os.path.isfile(temp_json_name):
                 os.remove(temp_json_name)
-        print('Data for training have been loaded...')
+        print('The FactRuEval-2016 data for training have been loaded...')
         print('Number of samples is {0}.'.format(len(y)))
         print('')
         max_number_of_tokens = 0
@@ -57,7 +59,14 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
             elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.25, max_epochs=max_epochs, patience=5,
             gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr
         )
-        recognizer.fit(X, y)
+        if collection3_dir is None:
+            recognizer.fit(X, y)
+        else:
+            X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
+            print('The Collection3 data for training have been loaded...')
+            print('Number of samples is {0}.'.format(len(y_train)))
+            print('')
+            recognizer.fit(X_train, y_train, validation_data=(X, y))
         with open(model_name, 'wb') as fp:
             pickle.dump(recognizer, fp)
         print('')
@@ -137,6 +146,8 @@ def main():
                         help='Path to the FactRuEval-2016 repository.')
     parser.add_argument('-r', '--result', dest='result_name', type=str, required=True,
                         help='The directory into which all recognized named entity labels will be saved.')
+    parser.add_argument('-c', '--collection', dest='collection_data_name', type=str, required=False, default=None,
+                        help='Path to the Collection-3 data set.')
     parser.add_argument('--batch', dest='batch_size', type=int, required=False, default=16,
                         help='Size of mini-batch.')
     parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
@@ -152,12 +163,13 @@ def main():
 
     if args.text_unit not in {'sentence', 'paragraph'}:
         raise ValueError('`{0}` is wrong value for the `text_unit` parameter!'.format(args.text_unit))
+    collection3_dir_name = None if args.collection_data_name is None else os.path.normpath(args.collection_data_name)
     devset_dir_name = os.path.join(os.path.normpath(args.data_name), 'devset')
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, elmo_will_be_tuned=args.finetune_elmo,
                        max_epochs=args.max_epochs, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
                        model_name=os.path.normpath(args.model_name), lr=args.lr,
-                       split_by_paragraphs=(args.text_unit == 'paragraph'))
+                       split_by_paragraphs=(args.text_unit == 'paragraph'), collection3_dir=collection3_dir_name)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
               results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))
 
