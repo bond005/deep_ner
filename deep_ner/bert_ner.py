@@ -222,7 +222,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 grads_and_vars = optimizer.compute_gradients(final_loss)
                 capped_gvs = [
                     (grad, var) if grad is None else (
-                        tf.clip_by_norm(grad, 5.0, name='grad_clipping_{0}'.format(idx + 1)),
+                        tf.clip_by_norm(grad, self.clip_norm, name='grad_clipping_{0}'.format(idx + 1)),
                         var
                     )
                     for idx, (grad, var) in enumerate(grads_and_vars)
