@@ -140,8 +140,13 @@ with open('path/to/file/with/model', 'rb') as fp:
 ```
 
 
-Note
-----
+#### Note 1
+
+
+All named entity labels must be uppercased texts without spaces. Also `O` is inadmissible label of named entity (this is a special label for background tokens in text, which are not part of any named entity). For example, `ORG`, `FIRST_NAME` and `LOCATION` are correct labels of named entities, and `Location`, `FIRST NAME` and `O` are wrong labels of named entities.
+
+
+#### Note 2
 
 
 You have to use short texts such as sentences or small paragraphs, because long texts will be processed worse. If you train the **Deep-NER** on corpus of long texts, then the training can be converged slowly. If you use the **Deep-NER**, trained on short texts, for recognizing of long text, then only some initial words of this text can be tagged, and remaining words at the end of text will not be considered by algorithm. Besides, you need to use a very large volume of RAM for processing of long texts.
