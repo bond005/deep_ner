@@ -12,12 +12,12 @@ from sklearn.exceptions import NotFittedError
 
 try:
     from deep_ner.elmo_ner import ELMo_NER
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 
 
@@ -892,7 +892,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
@@ -933,7 +933,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
@@ -978,7 +978,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
@@ -1022,7 +1022,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
@@ -1075,7 +1075,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, random_seed=None,
                             elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         with self.assertRaises(NotFittedError):
             _ = self.ner.predict(X_train)
 
@@ -1083,7 +1083,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
@@ -1228,7 +1228,7 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE)
-        X_train, y_train = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         self.ner.fit(X_train, y_train)
         self.another_ner = copy.copy(self.ner)
         self.assertIsInstance(self.another_ner, ELMo_NER)
