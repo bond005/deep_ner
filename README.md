@@ -3,9 +3,7 @@
 
 The goal of this project is creation of a simple Python package with the sklearn-like interface for solution of different named entity recognition tasks in case number of labeled texts is very small (not greater than several thousands). Special neural network language models named as [ELMo](https://arxiv.org/abs/1802.05365) (**E**mbeddings from **L**anguage **Mo**dels) and [BERT](https://arxiv.org/abs/1810.04805) (**B**idirectional **E**ncoder **R**epresentations from **T**ransformers) ensure this possibility, because these language models were pre-trained on large text corpora and so they can select deep semantic features from text, reduce the influence of the homonymy problem and the like.
 
-## Getting Started
-
-### Installing
+## Installing
 
 To install this project on your local machine, you should run the following commands in Terminal:
 
@@ -21,7 +19,7 @@ You can also run the tests
 python setup.py test
 ```
 
-### Usage
+## Usage
 
 After installing the **Deep-NER** can be used as Python package in your projects. It includes two variants of NER: the **ELMo-NER** and the **BERT-NER**. You can create new named entity recognizer using the [Multilingual BERT](https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1) as follows:
 
