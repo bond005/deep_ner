@@ -134,7 +134,7 @@ with open('path/to/file/with/model', 'rb') as fp:
     yet_another_ner = pickle.load(fp)
 ```
 
-###Note
+##Note
 
 You have to use short texts such as sentences or small paragraphs, because long texts will be processed worse. If you train the **Deep-NER** on corpus of long texts, then the training can be converged slowly. If you use the **Deep-NER**, trained on short texts, for recognizing of long text, then only some initial words of this text can be tagged, and remaining words at the end of text will not be considered by algorithm. Besides, you need to use a very large volume of RAM for processing of long texts.
 
