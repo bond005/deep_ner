@@ -5,7 +5,8 @@
 The goal of this project is creation of a simple Python package with the sklearn-like interface for solution of different named entity recognition tasks in case number of labeled texts is very small (not greater than several thousands). Special neural network language models named as [ELMo](https://arxiv.org/abs/1802.05365) (**E**mbeddings from **L**anguage **Mo**dels) and [BERT](https://arxiv.org/abs/1810.04805) (**B**idirectional **E**ncoder **R**epresentations from **T**ransformers) ensure this possibility, because these language models were pre-trained on large text corpora and so they can select deep semantic features from text, reduce the influence of the homonymy problem and the like.
 
 
-## Installing
+Installing
+----------
 
 
 To install this project on your local machine, you should run the following commands in Terminal:
@@ -23,7 +24,8 @@ python setup.py test
 ```
 
 
-## Usage
+Usage
+-----
 
 
 After installing the **Deep-NER** can be used as Python package in your projects. It includes two variants of NER: the **ELMo-NER** and the **BERT-NER**. You can create new named entity recognizer using the [Multilingual BERT](https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1) as follows:
@@ -138,7 +140,8 @@ with open('path/to/file/with/model', 'rb') as fp:
 ```
 
 
-##Note
+Note
+----
 
 
 You have to use short texts such as sentences or small paragraphs, because long texts will be processed worse. If you train the **Deep-NER** on corpus of long texts, then the training can be converged slowly. If you use the **Deep-NER**, trained on short texts, for recognizing of long text, then only some initial words of this text can be tagged, and remaining words at the end of text will not be considered by algorithm. Besides, you need to use a very large volume of RAM for processing of long texts.
@@ -146,7 +149,8 @@ You have to use short texts such as sentences or small paragraphs, because long 
 For solving of above-mentioned problem you can split long texts by shorter sentences using well-known NLP libraries such as [NLTK](http://www.nltk.org/api/nltk.tokenize.html?highlight=sent_tokenize#nltk.tokenize.sent_tokenize) or [SpaCy](https://spacy.io/api/token#is_sent_start). Also, for splitting of long texts together with their manual annotations you can use the special function `divide_dataset_by_sentences` from the `utils` module of this package.
 
 
-##Demo
+Demo
+----
 
 
 In the `demo` subdirectory you can see **demo_elmo_factrueval2016.py** and **demo_bert_factrueval2016.py** - examples of experiments on the FactRuEval-2016 text corpus, which is part of special competition devoted to named entity recognition and fact extraction in Russian (it is described in the paper [FactRuEval 2016: Evaluation of Named Entity Recognition and Fact Extraction Systems for Russian](http://www.dialog-21.ru/media/3430/starostinaetal.pdf)).
@@ -207,7 +211,8 @@ python t1_eval.py -t ~/FactRuEval2016_results/results_of_tuned_bert_and_crf -s .
 Quality score calculated by this script may differ from value returned by the `calculate_prediction_quality` method of the `quality` module.
 
 
-## Acknowledgment
+Acknowledgment
+--------------
 
 
 The work was supported by National Technology Initiative and PAO Sberbank project ID 0000000007417F630002.
