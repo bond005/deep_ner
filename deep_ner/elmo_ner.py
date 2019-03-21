@@ -87,22 +87,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_train_ = y
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
-        config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
-        self.sess_ = tf.Session(config=config)
-        self.input_tokens_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.string,
-                                            name='tokens')
-        self.sequence_lengths_ = tf.placeholder(shape=(self.batch_size,), dtype=tf.int32, name='sequence_len')
-        self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
-        elmo_inputs = dict(
-            tokens=self.input_tokens_,
-            sequence_len=self.sequence_lengths_
-        )
-        elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
-        sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
-        sequence_output = tf.reshape(sequence_output, [self.batch_size, self.max_seq_length, 1024])
-        if self.verbose:
-            elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
         X_train_tokenized, y_train_tokenized, self.shapes_list_ = self.tokenize_all(X_train_, y_train_)
         X_train_tokenized, y_train_tokenized = self.extend_Xy(X_train_tokenized, y_train_tokenized, shuffle=True)
         if (X_val_ is not None) and (y_val_ is not None):
@@ -113,36 +97,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_val_tokenized = None
         if self.verbose:
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
-        n_tags = len(self.classes_list_) * 2 + 1
-        self.additional_features_ = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
-            name='additional_features'
-        )
-        he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
-        if self.finetune_elmo:
-            self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
-                                           n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
-        else:
-            sequence_output_stop = tf.stop_gradient(sequence_output)
-            self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
-                                           n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
-        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
-                                                                              self.sequence_lengths_)
-        loss_tensor = -log_likelihood
-        base_loss = tf.reduce_mean(loss_tensor)
-        regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        final_loss = base_loss + regularization_loss
-        self.transition_params_ = transition_params
-        with tf.name_scope('train'):
-            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
-            train_op = optimizer.minimize(final_loss)
-        with tf.name_scope('eval'):
-            seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, self.sequence_lengths_,
-                                                           self.transition_params_)
-            seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_, self.transition_params_)
-            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
+        train_op, accuracy = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -254,7 +209,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     break
             if best_acc is not None:
                 self.finalize_model()
-                self.build_model()
+                _, accuracy = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose:
                     if bounds_of_batches_for_validation is not None:
@@ -655,7 +610,21 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
                 n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
                 kernel_initializer=he_init, name='outputs_of_NER')
-        _, self.transition_params_ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_, self.sequence_lengths_)
+        log_likelihood, self.transition_params_ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
+                                                                                    self.sequence_lengths_)
+        loss_tensor = -log_likelihood
+        base_loss = tf.reduce_mean(loss_tensor)
+        regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+        final_loss = base_loss + regularization_loss
+        with tf.name_scope('train'):
+            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
+            train_op = optimizer.minimize(final_loss)
+        with tf.name_scope('eval'):
+            seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, self.sequence_lengths_,
+                                                           self.transition_params_)
+            seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_, self.transition_params_)
+            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
+        return train_op, accuracy
 
     def finalize_model(self):
         if hasattr(self, 'input_tokens_'):

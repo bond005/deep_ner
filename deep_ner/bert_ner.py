@@ -100,62 +100,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             y_train_ = y
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
-        config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
-        self.sess_ = tf.Session(config=config)
-        self.input_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                         name='input_ids')
-        self.input_mask_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                          name='input_mask')
-        self.segment_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                           name='segment_ids')
-        self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
-        bert_inputs = dict(
-            input_ids=self.input_ids_,
-            input_mask=self.input_mask_,
-            segment_ids=self.segment_ids_
-        )
-        if self.bert_hub_module_handle is not None:
-            bert_module = tfhub.Module(self.bert_hub_module_handle, trainable=True)
-            tokenization_info = bert_module(signature='tokenization_info', as_dict=True)
-            vocab_file, do_lower_case = self.sess_.run([tokenization_info['vocab_file'],
-                                                        tokenization_info['do_lower_case']])
-            self.tokenizer_ = FullTokenizer(vocab_file=vocab_file, do_lower_case=do_lower_case)
-            bert_outputs = bert_module(bert_inputs, signature='tokens', as_dict=True)
-            sequence_output = bert_outputs['sequence_output']
-            if self.verbose:
-                bert_ner_logger.info('The BERT model has been loaded from the TF-Hub.')
-        else:
-            if self.PATH_TO_BERT is None:
-                raise ValueError('Path to the BERT model is not defined!')
-            path_to_bert = os.path.normpath(self.PATH_TO_BERT)
-            if not self.check_path_to_bert(path_to_bert):
-                raise ValueError('`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
-                    self.PATH_TO_BERT))
-            if os.path.basename(path_to_bert).find('_uncased_') >= 0:
-                do_lower_case = True
-            else:
-                if os.path.basename(path_to_bert).find('_cased_') >= 0:
-                    do_lower_case = False
-                else:
-                    do_lower_case = None
-            if do_lower_case is None:
-                raise ValueError('`{0}` is bad path to the BERT model, because a tokenization mode (lower case or no) '
-                                 'cannot be detected.'.format(path_to_bert))
-            bert_config = BertConfig.from_json_file(os.path.join(path_to_bert, 'bert_config.json'))
-            self.tokenizer_ = FullTokenizer(vocab_file=os.path.join(path_to_bert, 'vocab.txt'),
-                                            do_lower_case=do_lower_case)
-            bert_model = BertModel(config=bert_config, is_training=self.finetune_bert, input_ids=self.input_ids_,
-                                   input_mask=self.input_mask_, token_type_ids=self.segment_ids_,
-                                   use_one_hot_embeddings=False)
-            sequence_output = bert_model.sequence_output
-            tvars = tf.trainable_variables()
-            init_checkpoint = os.path.join(self.PATH_TO_BERT, 'bert_model.ckpt')
-            (assignment_map, initialized_variable_names) = get_assignment_map_from_checkpoint(tvars, init_checkpoint)
-            tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
-            if self.verbose:
-                bert_ner_logger.info('The BERT model has been loaded from a local drive. '
-                                     '`do_lower_case` is {0}.'.format(do_lower_case))
+        self.tokenizer_ = self.initialize_bert_tokenizer()
         X_train_tokenized, y_train_tokenized, self.shapes_list_, bounds_of_tokens_for_training = self.tokenize_all(
             X_train_, y_train_)
         X_train_tokenized, y_train_tokenized, _ = self.extend_Xy(
@@ -170,69 +115,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_tokenized = None
             y_val_tokenized = None
             bounds_of_tokens_for_validation = None
-        self.additional_features_ = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
-            name='additional_features'
-        )
-        if self.verbose:
-            bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
-        n_tags = len(self.classes_list_) * 2 + 1
-        he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
-        glorot_init = tf.keras.initializers.glorot_uniform(seed=self.random_seed)
-        sequence_lengths = tf.reduce_sum(self.input_mask_, axis=1)
-        if self.lstm_units is None:
-            if self.finetune_bert:
-                self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
-                                               n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                               kernel_initializer=he_init, name='outputs_of_NER')
-            else:
-                sequence_output_stop = tf.stop_gradient(sequence_output)
-                self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
-                                               n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                               kernel_initializer=he_init, name='outputs_of_NER')
-        else:
-            if self.finetune_bert:
-                with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(sequence_output)
-            else:
-                sequence_output_stop = tf.stop_gradient(sequence_output)
-                with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(sequence_output_stop)
-            self.logits_ = tf.layers.dense(tf.concat([rnn_output, self.additional_features_], axis=-1), n_tags,
-                                           activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
-        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
-                                                                              sequence_lengths)
-        loss_tensor = -log_likelihood
-        base_loss = tf.reduce_mean(loss_tensor)
-        regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        final_loss = base_loss + regularization_loss
-        self.transition_params_ = transition_params
-        with tf.name_scope('train'):
-            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
-            if (self.lstm_units is None) or (self.clip_norm is None):
-                train_op = optimizer.minimize(final_loss)
-            else:
-                grads_and_vars = optimizer.compute_gradients(final_loss)
-                capped_gvs = [
-                    (grad, var) if grad is None else (
-                        tf.clip_by_norm(grad, 5.0, name='grad_clipping_{0}'.format(idx + 1)),
-                        var
-                    )
-                    for idx, (grad, var) in enumerate(grads_and_vars)
-                ]
-                train_op = optimizer.apply_gradients(capped_gvs)
-        with tf.name_scope('eval'):
-            seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, sequence_lengths,
-                                                           self.transition_params_)
-            seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, sequence_lengths, self.transition_params_)
-            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
+        train_op, accuracy = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -345,7 +228,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     break
             if best_acc is not None:
                 self.finalize_model()
-                self.build_model()
+                _, accuracy = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose and (bounds_of_batches_for_validation is not None):
                     acc_test = 0.0
@@ -766,6 +649,45 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
+    def initialize_bert_tokenizer(self) -> FullTokenizer:
+        if self.bert_hub_module_handle is not None:
+            config = tf.ConfigProto()
+            config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+            self.sess_ = tf.Session(config=config)
+            bert_module = tfhub.Module(self.bert_hub_module_handle, trainable=True)
+            tokenization_info = bert_module(signature='tokenization_info', as_dict=True)
+            vocab_file, do_lower_case = self.sess_.run([tokenization_info['vocab_file'],
+                                                        tokenization_info['do_lower_case']])
+            tokenizer_ = FullTokenizer(vocab_file=vocab_file, do_lower_case=do_lower_case)
+            if hasattr(self, 'sess_'):
+                for k in list(self.sess_.graph.get_all_collection_keys()):
+                    self.sess_.graph.clear_collection(k)
+                self.sess_.close()
+                del self.sess_
+            tf.reset_default_graph()
+        else:
+            if self.PATH_TO_BERT is None:
+                raise ValueError('Path to the BERT model is not defined!')
+            path_to_bert = os.path.normpath(self.PATH_TO_BERT)
+            if not self.check_path_to_bert(path_to_bert):
+                raise ValueError('`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
+                    self.PATH_TO_BERT))
+            if os.path.basename(path_to_bert).find('_uncased_') >= 0:
+                do_lower_case = True
+            else:
+                if os.path.basename(path_to_bert).find('_cased_') >= 0:
+                    do_lower_case = False
+                else:
+                    do_lower_case = None
+            if do_lower_case is None:
+                raise ValueError('`{0}` is bad path to the BERT model, because a tokenization mode (lower case or no) '
+                                 'cannot be detected.'.format(path_to_bert))
+            tokenizer_ = FullTokenizer(vocab_file=os.path.join(path_to_bert, 'vocab.txt'), do_lower_case=do_lower_case)
+            if self.verbose:
+                bert_ner_logger.info('The BERT tokenizer has been loaded from a local drive. '
+                                     '`do_lower_case` is {0}.'.format(do_lower_case))
+        return tokenizer_
+
     def build_model(self):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
@@ -776,10 +698,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                           name='input_mask')
         self.segment_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
                                            name='segment_ids')
-        self.additional_features_ = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
-            name='additional_features'
-        )
         self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
         bert_inputs = dict(
             input_ids=self.input_ids_,
@@ -797,33 +715,25 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 raise ValueError('Path to the BERT model is not defined!')
             path_to_bert = os.path.normpath(self.PATH_TO_BERT)
             if not self.check_path_to_bert(path_to_bert):
-                raise ValueError(
-                    '`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
-                        self.PATH_TO_BERT))
-            if os.path.basename(path_to_bert).find('_uncased_') >= 0:
-                do_lower_case = True
-            else:
-                if os.path.basename(path_to_bert).find('_cased_') >= 0:
-                    do_lower_case = False
-                else:
-                    do_lower_case = None
-            if do_lower_case is None:
-                raise ValueError('`{0}` is bad path to the BERT model, because a tokenization mode (lower case '
-                                 'or no) cannot be detected.'.format(path_to_bert))
+                raise ValueError('`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
+                    self.PATH_TO_BERT))
             bert_config = BertConfig.from_json_file(os.path.join(path_to_bert, 'bert_config.json'))
-            bert_model = BertModel(config=bert_config, is_training=self.finetune_bert,
-                                   input_ids=self.input_ids_,
+            bert_model = BertModel(config=bert_config, is_training=self.finetune_bert, input_ids=self.input_ids_,
                                    input_mask=self.input_mask_, token_type_ids=self.segment_ids_,
                                    use_one_hot_embeddings=False)
             sequence_output = bert_model.sequence_output
             tvars = tf.trainable_variables()
             init_checkpoint = os.path.join(self.PATH_TO_BERT, 'bert_model.ckpt')
-            (assignment_map, initialized_variable_names) = get_assignment_map_from_checkpoint(
-                tvars, init_checkpoint
-            )
+            (assignment_map, initialized_variable_names) = get_assignment_map_from_checkpoint(tvars, init_checkpoint)
             tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive.')
+        self.additional_features_ = tf.placeholder(
+            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
+            name='additional_features'
+        )
+        if self.verbose:
+            bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
         n_tags = len(self.classes_list_) * 2 + 1
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         glorot_init = tf.keras.initializers.glorot_uniform(seed=self.random_seed)
@@ -835,30 +745,53 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                                kernel_initializer=he_init, name='outputs_of_NER')
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
-                self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_],
-                                                         axis=-1),
+                self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
                                                n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
                                                kernel_initializer=he_init, name='outputs_of_NER')
         else:
             if self.finetune_bert:
                 with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh,
-                                                        kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(
-                        tf.keras.layers.RNN(rnn_cell, return_sequences=True))
+                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
+                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
+                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
                     rnn_output = rnn_layer(sequence_output)
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
                 with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh,
-                                                        kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(
-                        tf.keras.layers.RNN(rnn_cell, return_sequences=True))
+                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
+                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
+                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
                     rnn_output = rnn_layer(sequence_output_stop)
             self.logits_ = tf.layers.dense(tf.concat([rnn_output, self.additional_features_], axis=-1), n_tags,
                                            activation=None, kernel_regularizer=tf.nn.l2_loss,
                                            kernel_initializer=he_init, name='outputs_of_NER')
-        _, self.transition_params_ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_, sequence_lengths)
+        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
+                                                                              sequence_lengths)
+        loss_tensor = -log_likelihood
+        base_loss = tf.reduce_mean(loss_tensor)
+        regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+        final_loss = base_loss + regularization_loss
+        self.transition_params_ = transition_params
+        with tf.name_scope('train'):
+            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
+            if (self.lstm_units is None) or (self.clip_norm is None):
+                train_op = optimizer.minimize(final_loss)
+            else:
+                grads_and_vars = optimizer.compute_gradients(final_loss)
+                capped_gvs = [
+                    (grad, var) if grad is None else (
+                        tf.clip_by_norm(grad, 5.0, name='grad_clipping_{0}'.format(idx + 1)),
+                        var
+                    )
+                    for idx, (grad, var) in enumerate(grads_and_vars)
+                ]
+                train_op = optimizer.apply_gradients(capped_gvs)
+        with tf.name_scope('eval'):
+            seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, sequence_lengths,
+                                                           self.transition_params_)
+            seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, sequence_lengths, self.transition_params_)
+            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
+        return train_op, accuracy
 
     def finalize_model(self):
         if hasattr(self, 'input_ids_'):
