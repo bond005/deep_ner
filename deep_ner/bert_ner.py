@@ -675,7 +675,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if os.path.basename(path_to_bert).find('_uncased_') >= 0:
                 do_lower_case = True
             else:
-                if os.path.basename(path_to_bert).find('_cased_') >= 0:
+                if os.path.basename(path_to_bert).find('_cased_') >= 0 or \
+                        os.path.basename(path_to_bert).startswith('cased_'):
                     do_lower_case = False
                 else:
                     do_lower_case = None
