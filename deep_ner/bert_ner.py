@@ -672,7 +672,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if not self.check_path_to_bert(path_to_bert):
                 raise ValueError('`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
                     self.PATH_TO_BERT))
-            if os.path.basename(path_to_bert).find('_uncased_') >= 0:
+            if (os.path.basename(path_to_bert).find('_uncased_') >= 0) or \
+                    (os.path.basename(path_to_bert).find('uncased_') >= 0):
                 do_lower_case = True
             else:
                 if os.path.basename(path_to_bert).find('_cased_') >= 0 or \

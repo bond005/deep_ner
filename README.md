@@ -43,7 +43,9 @@ BERT_NER.PATH_TO_BERT = '/path/to/the/unpacked/BERT'
 ner = BERT_NER()  # create new named entity recognizer using this BERT
 ```
 
-You can find archives with pre-trained BERT, appropriate for you, on websites of various scientific projects (so, good BERT model for Russian language is available as part of the DeepPavlov project http://files.deeppavlov.ai/deeppavlov_data/bert/cased_L-12_H-768_A-12.zip).
+**Important note**: name of directory with unpacked files of your BERT model must contain such subphrases as `cased` or `uncased` (for example, `cased_L-12_H-768_A-12`, `rubert_uncased_L-24_H-768_A-24` and the like). Presence of `cased` substring implies that the true case of processed texts is preserved, and occurrence of `uncased` substring is corresponded to processing of texts in lower-case only.
+
+You can find archives with pre-trained BERT, appropriate for you, on websites of various scientific projects (so, good BERT model for Russian language is available as part of the DeepPavlov project http://files.deeppavlov.ai/deeppavlov_data/bert/rubert_cased_L-12_H-768_A-12_v1.tar.gz).
 
 For building of NER based on the ELMo model you have to import another module and create object of the ELMo_NER class, like this:
 
