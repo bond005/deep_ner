@@ -864,6 +864,86 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
     return texts, entities
 
 
+def load_dataset_from_bio(file_name: str) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
+    texts = []
+    named_entities = []
+    new_text = ''
+    named_entities_for_new_text = dict()
+    entity_start = -1
+    entity_type = ''
+    line_idx = 1
+    with codecs.open(file_name, mode='r', encoding='utf-8', errors='ignore') as fp:
+        cur_line = fp.readline()
+        while len(cur_line) > 0:
+            prep_line = cur_line.strip()
+            if len(prep_line) > 0:
+                err_msg = 'File `{0}`: line {1} is wrong!'.format(file_name, line_idx)
+                parts_of_line = prep_line.split()
+                if len(parts_of_line) < 2:
+                    raise ValueError(err_msg)
+                token_text = parts_of_line[0]
+                token_label = parts_of_line[-1]
+                if not token_label.isupper():
+                    raise ValueError(err_msg)
+                if (token_label != 'O') and (not token_label.startswith('B-')) and (not token_label.startswith('I-')):
+                    raise ValueError(err_msg)
+                if (token_label != 'O') and (len(token_label) < 3):
+                    raise ValueError(err_msg)
+                if token_label == 'O':
+                    if entity_start >= 0:
+                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
+                                                                   [(entity_start, len(new_text))]
+                        entity_start = -1
+                        entity_type = ''
+                else:
+                    if token_label.startswith('B-') and (entity_start >= 0):
+                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
+                                                                   [(entity_start, len(new_text))]
+                        entity_start = -1
+                        entity_type = ''
+                if token_text.isalnum():
+                    if len(new_text) == 0:
+                        new_text = token_text
+                    else:
+                        new_text += (' ' + token_text)
+                else:
+                    if token_text in {')', '}', ']', '>', '.', ',', '?', ':', ';'}:
+                        new_text += token_text
+                    else:
+                        if (token_text == '%') and (len(new_text) > 0) and (new_text[-1].isdigit()):
+                            new_text += token_text
+                        elif (token_text == '\'') and (new_text.endswith('\'')):
+                            new_text += token_text
+                        else:
+                            if len(new_text) == 0:
+                                new_text = token_text
+                            else:
+                                new_text += (' ' + token_text)
+                if token_label.startswith('B-'):
+                    entity_start = new_text.rfind(token_text)
+                    entity_type = token_label[2:]
+            else:
+                if len(new_text) > 0:
+                    if entity_start >= 0:
+                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
+                                                                   [(entity_start, len(new_text))]
+                    texts.append(new_text)
+                    named_entities.append(named_entities_for_new_text)
+                new_text = ''
+                named_entities_for_new_text = dict()
+                entity_start = -1
+                entity_type = ''
+            cur_line = fp.readline()
+            line_idx += 1
+    if len(new_text) > 0:
+        if entity_start >= 0:
+            named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
+                                                       [(entity_start, len(new_text))]
+        texts.append(new_text)
+        named_entities.append(named_entities_for_new_text)
+    return texts, named_entities
+
+
 def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]) -> \
         Tuple[Union[list, tuple, np.array], Union[list, tuple, np.array]]:
     X_new = []

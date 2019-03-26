@@ -1,0 +1,53 @@
+-DOCSTART- -X- -X- O
+
+SOCCER NN B-NP O
+- : O O
+JAPAN NNP B-NP B-LOC
+GET VB B-VP O
+LUCKY NNP B-NP O
+WIN NNP I-NP O
+, , O O
+CHINA NNP B-NP B-PER
+IN IN B-PP O
+SURPRISE DT B-NP O
+DEFEAT NN I-NP O
+. . O O
+
+Nadim NNP B-NP B-PER
+Ladki NNP I-NP I-PER
+
+AL-AIN NNP B-NP B-LOC
+, , O O
+United NNP B-NP B-LOC
+Arab NNP I-NP I-LOC
+Emirates NNPS I-NP I-LOC
+1996-12-06 CD I-NP O
+
+Japan NNP B-NP B-LOC
+coach NN I-NP O
+Shu NNP I-NP B-PER
+Kamo NNP I-NP I-PER
+said VBD B-VP O
+: : O O
+' '' O O
+' POS B-NP O
+The DT I-NP O
+Syrian JJ I-NP B-MISC
+own JJ I-NP O
+goal NN I-NP O
+proved VBD B-VP O
+lucky JJ B-ADJP O
+for IN B-PP O
+us PRP B-NP O
+. . O O
+
+Percent NN B-NP O
+change NN I-NP O
+1.8 CD B-NP O
+% NN I-NP O
+21.8 CD B-NP O
+% NN I-NP O
+- : O O
+4.4 CD B-NP O
+% NN I-NP O
+

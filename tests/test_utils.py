@@ -8,12 +8,14 @@ try:
     from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
+    from deep_ner.utils import load_dataset_from_bio
     from deep_ner.utils import divide_dataset_by_sentences
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
+    from deep_ner.utils import load_dataset_from_bio
     from deep_ner.utils import divide_dataset_by_sentences
 
 
@@ -1541,6 +1543,39 @@ class TestUtils(unittest.TestCase):
         true_err_msg = re.escape('The annotation file `002.ann` has not a corresponding text file!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _, = load_dataset_from_brat(brat_datadir_name)
+
+    def test_load_dataset_from_bio(self):
+        bio_file_name = os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt')
+        true_texts = [
+            '-DOCSTART-',
+            'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.',
+            'Nadim Ladki',
+            'AL-AIN, United Arab Emirates 1996-12-06',
+            'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
+            'Percent change 1.8% 21.8% - 4.4%'
+        ]
+        true_entities = [
+            dict(),
+            {'LOC': [(9, 14)], 'PER': [(30, 35)]},
+            {'PER': [(0, 11)]},
+            {'LOC': [(0, 6), (8, 28)]},
+            {'LOC': [(0, 5)], 'PER': [(12, 20)], 'MISC': [(34, 40)]},
+            dict()
+        ]
+        loaded_texts, loaded_entities = load_dataset_from_bio(bio_file_name)
+        self.assertIsInstance(loaded_texts, list)
+        self.assertIsInstance(loaded_entities, list)
+        self.assertEqual(len(true_texts), len(loaded_texts))
+        self.assertEqual(true_texts, loaded_texts)
+        self.assertEqual(len(true_entities), len(loaded_entities))
+        for idx in range(len(true_entities)):
+            self.assertIsInstance(loaded_entities[idx], dict, msg='Sample {0}'.format(idx))
+            self.assertEqual(set(true_entities[idx].keys()), set(loaded_entities[idx].keys()),
+                             msg='Sample {0}'.format(idx))
+            for ne_type in true_entities[idx]:
+                self.assertIsInstance(loaded_entities[idx][ne_type], list, msg='Sample {0}'.format(idx))
+                self.assertEqual(true_entities[idx][ne_type], loaded_entities[idx][ne_type],
+                                 msg='Sample {0}'.format(idx))
 
     def test_divide_dataset_by_sentences_positive01(self):
         X_src = [
