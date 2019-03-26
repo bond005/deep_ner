@@ -8,17 +8,17 @@ import numpy as np
 
 try:
     from deep_ner.dataset_splitting import split_dataset
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
     from deep_ner.dataset_splitting import split_dataset
 
 
 class TestDatasetSplitting(unittest.TestCase):
     def test_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        _, y = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
+        _, y = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         train_index, test_index = split_dataset(y, 0.3, 10)
         self.assertIsInstance(train_index, np.ndarray)
         self.assertIsInstance(test_index, np.ndarray)
