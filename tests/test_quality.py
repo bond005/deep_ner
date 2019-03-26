@@ -4,11 +4,11 @@ import unittest
 
 
 try:
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality, calc_similarity_between_entities
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.utils import load_dataset
+    from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality, calc_similarity_between_entities
 
 
@@ -106,8 +106,8 @@ class TestQuality(unittest.TestCase):
 
     def test_calculate_prediction_quality(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        X_true, y_true = load_dataset(os.path.join(base_dir, 'true_named_entities.json'))
-        X_pred, y_pred = load_dataset(os.path.join(base_dir, 'predicted_named_entities.json'))
+        X_true, y_true = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
+        X_pred, y_pred = load_dataset_from_json(os.path.join(base_dir, 'predicted_named_entities.json'))
         self.assertEqual(X_true, X_pred)
         f1, precision, recall, quality_by_entities = calculate_prediction_quality(
             y_true, y_pred, ('LOCATION', 'PERSON', 'ORG')
