@@ -1544,7 +1544,7 @@ class TestUtils(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _, = load_dataset_from_brat(brat_datadir_name)
 
-    def test_load_dataset_from_bio(self):
+    def test_load_dataset_from_bio_positive01(self):
         bio_file_name = os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt')
         true_texts = [
             '-DOCSTART-',
@@ -1552,7 +1552,9 @@ class TestUtils(unittest.TestCase):
             'Nadim Ladki',
             'AL-AIN, United Arab Emirates 1996-12-06',
             'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
-            'Percent change 1.8% 21.8% - 4.4%'
+            'Percent change 1.8% 21.8% - 4.4%',
+            '-DOCSTART-',
+            'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.'
         ]
         true_entities = [
             dict(),
@@ -1560,9 +1562,73 @@ class TestUtils(unittest.TestCase):
             {'PER': [(0, 11)]},
             {'LOC': [(0, 6), (8, 28)]},
             {'LOC': [(0, 5)], 'PER': [(12, 20)], 'MISC': [(34, 40)]},
-            dict()
+            dict(),
+            dict(),
+            {'MISC': [(10, 26)]}
         ]
         loaded_texts, loaded_entities = load_dataset_from_bio(bio_file_name)
+        self.assertIsInstance(loaded_texts, list)
+        self.assertIsInstance(loaded_entities, list)
+        self.assertEqual(len(true_texts), len(loaded_texts))
+        self.assertEqual(true_texts, loaded_texts)
+        self.assertEqual(len(true_entities), len(loaded_entities))
+        for idx in range(len(true_entities)):
+            self.assertIsInstance(loaded_entities[idx], dict, msg='Sample {0}'.format(idx))
+            self.assertEqual(set(true_entities[idx].keys()), set(loaded_entities[idx].keys()),
+                             msg='Sample {0}'.format(idx))
+            for ne_type in true_entities[idx]:
+                self.assertIsInstance(loaded_entities[idx][ne_type], list, msg='Sample {0}'.format(idx))
+                self.assertEqual(true_entities[idx][ne_type], loaded_entities[idx][ne_type],
+                                 msg='Sample {0}'.format(idx))
+
+    def test_load_dataset_from_bio_positive02(self):
+        bio_file_name = os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt')
+        true_texts = [
+            'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.',
+            'Nadim Ladki',
+            'AL-AIN, United Arab Emirates 1996-12-06',
+            'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
+            'Percent change 1.8% 21.8% - 4.4%',
+            'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.',
+        ]
+        true_entities = [
+            {'LOC': [(9, 14)], 'PER': [(30, 35)]},
+            {'PER': [(0, 11)]},
+            {'LOC': [(0, 6), (8, 28)]},
+            {'LOC': [(0, 5)], 'PER': [(12, 20)], 'MISC': [(34, 40)]},
+            dict(),
+            {'MISC': [(10, 26)]}
+        ]
+        loaded_texts, loaded_entities = load_dataset_from_bio(bio_file_name, stopwords={'-DOCSTART-'})
+        self.assertIsInstance(loaded_texts, list)
+        self.assertIsInstance(loaded_entities, list)
+        self.assertEqual(len(true_texts), len(loaded_texts))
+        self.assertEqual(true_texts, loaded_texts)
+        self.assertEqual(len(true_entities), len(loaded_entities))
+        for idx in range(len(true_entities)):
+            self.assertIsInstance(loaded_entities[idx], dict, msg='Sample {0}'.format(idx))
+            self.assertEqual(set(true_entities[idx].keys()), set(loaded_entities[idx].keys()),
+                             msg='Sample {0}'.format(idx))
+            for ne_type in true_entities[idx]:
+                self.assertIsInstance(loaded_entities[idx][ne_type], list, msg='Sample {0}'.format(idx))
+                self.assertEqual(true_entities[idx][ne_type], loaded_entities[idx][ne_type],
+                                 msg='Sample {0}'.format(idx))
+
+    def test_load_dataset_from_bio_positive03(self):
+        bio_file_name = os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt')
+        true_texts = [
+            'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT. Nadim Ladki AL-AIN, United Arab Emirates '
+            '1996-12-06 Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us. '
+            'Percent change 1.8% 21.8% - 4.4%',
+            'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.',
+        ]
+        true_entities = [
+            {'LOC': [(9, 14), (68, 74), (76, 96), (108, 113)], 'PER': [(30, 35), (56, 67), (120, 128)],
+             'MISC': [(142, 148)]},
+            {'MISC': [(10, 26)]}
+        ]
+        loaded_texts, loaded_entities = load_dataset_from_bio(bio_file_name, paragraph_separators={'-DOCSTART-'},
+                                                              stopwords={'-DOCSTART-'})
         self.assertIsInstance(loaded_texts, list)
         self.assertIsInstance(loaded_entities, list)
         self.assertEqual(len(true_texts), len(loaded_texts))

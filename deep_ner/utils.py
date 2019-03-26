@@ -3,7 +3,7 @@ import copy
 import json
 from logging import Logger
 import os
-from typing import Dict, Tuple, List, Union
+from typing import Dict, Tuple, List, Union, Set
 import warnings
 
 from nltk.tokenize import word_tokenize, sent_tokenize
@@ -864,7 +864,8 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
     return texts, entities
 
 
-def load_dataset_from_bio(file_name: str) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
+def load_dataset_from_bio(file_name: str, paragraph_separators: Set[str]=None,
+                          stopwords: Set[str]=None) -> Tuple[List[str], List[Dict[str, List[Tuple[int, int]]]]]:
     texts = []
     named_entities = []
     new_text = ''
@@ -889,50 +890,67 @@ def load_dataset_from_bio(file_name: str) -> Tuple[List[str], List[Dict[str, Lis
                     raise ValueError(err_msg)
                 if (token_label != 'O') and (len(token_label) < 3):
                     raise ValueError(err_msg)
-                if token_label == 'O':
-                    if entity_start >= 0:
-                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
-                                                                   [(entity_start, len(new_text))]
-                        entity_start = -1
-                        entity_type = ''
-                else:
-                    if token_label.startswith('B-') and (entity_start >= 0):
-                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
-                                                                   [(entity_start, len(new_text))]
-                        entity_start = -1
-                        entity_type = ''
-                if token_text.isalnum():
-                    if len(new_text) == 0:
-                        new_text = token_text
+                if (paragraph_separators is not None) and (token_text in paragraph_separators):
+                    if len(new_text) > 0:
+                        if entity_start >= 0:
+                            named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(
+                                entity_type, []
+                            ) + [(entity_start, len(new_text))]
+                        texts.append(new_text)
+                        named_entities.append(named_entities_for_new_text)
+                    new_text = ''
+                    named_entities_for_new_text = dict()
+                    entity_start = -1
+                    entity_type = ''
+                elif (stopwords is None) or (token_text not in stopwords):
+                    if token_label == 'O':
+                        if entity_start >= 0:
+                            named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(
+                                entity_type, []
+                            ) + [(entity_start, len(new_text))]
+                            entity_start = -1
+                            entity_type = ''
                     else:
-                        new_text += (' ' + token_text)
-                else:
-                    if token_text in {')', '}', ']', '>', '.', ',', '?', ':', ';'}:
-                        new_text += token_text
+                        if token_label.startswith('B-') and (entity_start >= 0):
+                            named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(
+                                entity_type, []
+                            ) + [(entity_start, len(new_text))]
+                            entity_start = -1
+                            entity_type = ''
+                    if token_text.isalnum():
+                        if len(new_text) == 0:
+                            new_text = token_text
+                        else:
+                            new_text += (' ' + token_text)
                     else:
-                        if (token_text == '%') and (len(new_text) > 0) and (new_text[-1].isdigit()):
-                            new_text += token_text
-                        elif (token_text == '\'') and (new_text.endswith('\'')):
+                        if token_text in {')', '}', ']', '>', '.', ',', '?', ':', ';'}:
                             new_text += token_text
                         else:
-                            if len(new_text) == 0:
-                                new_text = token_text
+                            if (token_text == '%') and (len(new_text) > 0) and (new_text[-1].isdigit()):
+                                new_text += token_text
+                            elif (token_text == '\'') and (new_text.endswith('\'')):
+                                new_text += token_text
                             else:
-                                new_text += (' ' + token_text)
-                if token_label.startswith('B-'):
-                    entity_start = new_text.rfind(token_text)
-                    entity_type = token_label[2:]
+                                if len(new_text) == 0:
+                                    new_text = token_text
+                                else:
+                                    new_text += (' ' + token_text)
+                    if token_label.startswith('B-'):
+                        entity_start = new_text.rfind(token_text)
+                        entity_type = token_label[2:]
             else:
-                if len(new_text) > 0:
-                    if entity_start >= 0:
-                        named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(entity_type, []) + \
-                                                                   [(entity_start, len(new_text))]
-                    texts.append(new_text)
-                    named_entities.append(named_entities_for_new_text)
-                new_text = ''
-                named_entities_for_new_text = dict()
-                entity_start = -1
-                entity_type = ''
+                if paragraph_separators is None:
+                    if len(new_text) > 0:
+                        if entity_start >= 0:
+                            named_entities_for_new_text[entity_type] = named_entities_for_new_text.get(
+                                entity_type, []
+                            ) + [(entity_start, len(new_text))]
+                        texts.append(new_text)
+                        named_entities.append(named_entities_for_new_text)
+                    new_text = ''
+                    named_entities_for_new_text = dict()
+                    entity_start = -1
+                    entity_type = ''
             cur_line = fp.readline()
             line_idx += 1
     if len(new_text) > 0:
