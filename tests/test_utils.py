@@ -1,6 +1,8 @@
+import codecs
 import os
 import re
 import sys
+import tempfile
 import unittest
 
 
@@ -8,18 +10,25 @@ try:
     from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
-    from deep_ner.utils import load_dataset_from_bio
+    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, get_bio_label_of_token
     from deep_ner.utils import divide_dataset_by_sentences
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import load_tokens_from_factrueval2016_by_paragraphs
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
-    from deep_ner.utils import load_dataset_from_bio
+    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, get_bio_label_of_token
     from deep_ner.utils import divide_dataset_by_sentences
 
 
 class TestUtils(unittest.TestCase):
+    def setUp(self):
+        self.tmp_data_name = tempfile.NamedTemporaryFile(mode='w', suffix='.dataset').name
+
+    def tearDown(self):
+        if os.path.isfile(self.tmp_data_name):
+            os.remove(self.tmp_data_name)
+
     def test_load_tokens_from_factrueval2016_by_sentences(self):
         true_tokens = {
             1802186: (0, 8, 'Назначен'),
@@ -1642,6 +1651,223 @@ class TestUtils(unittest.TestCase):
                 self.assertIsInstance(loaded_entities[idx][ne_type], list, msg='Sample {0}'.format(idx))
                 self.assertEqual(true_entities[idx][ne_type], loaded_entities[idx][ne_type],
                                  msg='Sample {0}'.format(idx))
+
+    def test_get_bio_label_of_token_positive01(self):
+        source_text = 'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.'
+        named_entities = {'LOC': [(9, 14)], 'PER': [(30, 35)]}
+        true_label = 'B-PER'
+        calculated_label = get_bio_label_of_token(source_text, (30, 35), named_entities)
+        self.assertEqual(true_label, calculated_label)
+
+    def test_get_bio_label_of_token_positive02(self):
+        source_text = 'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.'
+        named_entities = {'LOC': [(9, 14)], 'PER': [(30, 35)]}
+        true_label = 'B-LOC'
+        calculated_label = get_bio_label_of_token(source_text, (9, 14), named_entities)
+        self.assertEqual(true_label, calculated_label)
+
+    def test_get_bio_label_of_token_positive03(self):
+        source_text = 'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.'
+        named_entities = {'LOC': [(9, 14)], 'PER': [(30, 35)]}
+        true_label = 'O'
+        calculated_label = get_bio_label_of_token(source_text, (39, 47), named_entities)
+        self.assertEqual(true_label, calculated_label)
+
+    def test_get_bio_label_of_token_positive04(self):
+        source_text = 'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.'
+        named_entities = {'LOC': [(9, 14)], 'PER': [(30, 35)]}
+        true_label = 'O'
+        calculated_label = get_bio_label_of_token(source_text, (35, 38), named_entities)
+        self.assertEqual(true_label, calculated_label)
+
+    def test_get_bio_label_of_token_positive05(self):
+        source_text = 'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.'
+        named_entities = {'LOC': [(0, 5)], 'PER': [(12, 20)], 'MISC': [(34, 40)]}
+        true_label = 'I-PER'
+        calculated_label = get_bio_label_of_token(source_text, (16, 20), named_entities)
+        self.assertEqual(true_label, calculated_label)
+
+    def test_save_dataset_as_bio_positive01(self):
+        source_texts = [
+            'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.',
+            'Nadim Ladki',
+            'AL-AIN, United Arab Emirates 1996-12-06',
+            'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
+            'Percent change 1.8% 21.8% - 4.4%',
+            'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.',
+        ]
+        source_entities = [
+            {'LOC': [(9, 14)], 'PER': [(30, 35)]},
+            {'PER': [(0, 11)]},
+            {'LOC': [(0, 6), (8, 28)]},
+            {'LOC': [(0, 5)], 'PER': [(12, 20)], 'MISC': [(34, 40)]},
+            dict(),
+            {'MISC': [(10, 26)]}
+        ]
+        save_dataset_as_bio(os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt'), source_texts,
+                            source_entities, self.tmp_data_name, stopwords={'-DOCSTART-'})
+        true_lines = [
+            "SOCCER\tO",
+            "-\tO",
+            "JAPAN\tB-LOC",
+            "GET\tO",
+            "LUCKY\tO",
+            "WIN\tO",
+            ",\tO",
+            "CHINA\tB-PER",
+            "IN\tO",
+            "SURPRISE\tO",
+            "DEFEAT\tO",
+            ".\tO",
+            "",
+            "Nadim\tB-PER",
+            "Ladki\tI-PER",
+            "",
+            "AL-AIN\tB-LOC",
+            ",\tO",
+            "United\tB-LOC",
+            "Arab\tI-LOC",
+            "Emirates\tI-LOC",
+            "1996-12-06\tO",
+            "",
+            "Japan\tB-LOC",
+            "coach\tO",
+            "Shu\tB-PER",
+            "Kamo\tI-PER",
+            "said\tO",
+            ":\tO",
+            "'\tO",
+            "'\tO",
+            "The\tO",
+            "Syrian\tB-MISC",
+            "own\tO",
+            "goal\tO",
+            "proved\tO",
+            "lucky\tO",
+            "for\tO",
+            "us\tO",
+            ".\tO",
+            "",
+            "Percent\tO",
+            "change\tO",
+            "1.8\tO",
+            "%\tO",
+            "21.8\tO",
+            "%\tO",
+            "-\tO",
+            "4.4\tO",
+            "%\tO",
+            "",
+            "FREESTYLE\tO",
+            "SKIING-WORLD\tB-MISC",
+            "CUP\tI-MISC",
+            "MOGUL\tO",
+            "RESULTS\tO",
+            ".\tO"
+        ]
+        with codecs.open(self.tmp_data_name, mode='r', encoding='utf-8', errors='ignore') as fp:
+            loaded_lines = list(map(lambda it: it.strip(), fp.readlines()))
+        while len(loaded_lines) > 0:
+            if len(loaded_lines[0].strip()) > 0:
+                break
+            del loaded_lines[0]
+        while len(loaded_lines) > 0:
+            if len(loaded_lines[-1].strip()) > 0:
+                break
+            del loaded_lines[-1]
+        self.assertEqual(len(true_lines), len(loaded_lines))
+        self.assertEqual(true_lines, loaded_lines)
+
+    def test_save_dataset_as_bio_positive02(self):
+        source_texts = [
+            'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.',
+            'Nadim Ladki',
+            'AL-AIN, United Arab Emirates 1996-12-06',
+            'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
+            'Percent change 1.8% 21.8% - 4.4%',
+            'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.',
+        ]
+        source_entities = [
+            {'LOC': [(8, 14)], 'PER': [(30, 35)]},
+            {'PER': [(1, 11)]},
+            {'LOC': [(0, 6), (8, 28)]},
+            {'LOC': [(0, 5)], 'PER': [(12, 22)], 'MISC': [(34, 40)]},
+            dict(),
+            {'MISC': [(10, 26)]}
+        ]
+        save_dataset_as_bio(os.path.join(os.path.dirname(__file__), 'testdata', 'bio.txt'), source_texts,
+                            source_entities, self.tmp_data_name, stopwords={'-DOCSTART-'})
+        true_lines = [
+            "SOCCER\tO",
+            "-\tO",
+            "JAPAN\tB-LOC",
+            "GET\tO",
+            "LUCKY\tO",
+            "WIN\tO",
+            ",\tO",
+            "CHINA\tB-PER",
+            "IN\tO",
+            "SURPRISE\tO",
+            "DEFEAT\tO",
+            ".\tO",
+            "",
+            "Nadim\tB-PER",
+            "Ladki\tI-PER",
+            "",
+            "AL-AIN\tB-LOC",
+            ",\tO",
+            "United\tB-LOC",
+            "Arab\tI-LOC",
+            "Emirates\tI-LOC",
+            "1996-12-06\tO",
+            "",
+            "Japan\tB-LOC",
+            "coach\tO",
+            "Shu\tB-PER",
+            "Kamo\tI-PER",
+            "said\tO",
+            ":\tO",
+            "'\tO",
+            "'\tO",
+            "The\tO",
+            "Syrian\tB-MISC",
+            "own\tO",
+            "goal\tO",
+            "proved\tO",
+            "lucky\tO",
+            "for\tO",
+            "us\tO",
+            ".\tO",
+            "",
+            "Percent\tO",
+            "change\tO",
+            "1.8\tO",
+            "%\tO",
+            "21.8\tO",
+            "%\tO",
+            "-\tO",
+            "4.4\tO",
+            "%\tO",
+            "",
+            "FREESTYLE\tO",
+            "SKIING-WORLD\tB-MISC",
+            "CUP\tI-MISC",
+            "MOGUL\tO",
+            "RESULTS\tO",
+            ".\tO"
+        ]
+        with codecs.open(self.tmp_data_name, mode='r', encoding='utf-8', errors='ignore') as fp:
+            loaded_lines = list(map(lambda it: it.strip(), fp.readlines()))
+        while len(loaded_lines) > 0:
+            if len(loaded_lines[0].strip()) > 0:
+                break
+            del loaded_lines[0]
+        while len(loaded_lines) > 0:
+            if len(loaded_lines[-1].strip()) > 0:
+                break
+            del loaded_lines[-1]
+        self.assertEqual(len(true_lines), len(loaded_lines))
+        self.assertEqual(true_lines, loaded_lines)
 
     def test_divide_dataset_by_sentences_positive01(self):
         X_src = [

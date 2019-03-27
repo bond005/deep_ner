@@ -962,6 +962,94 @@ def load_dataset_from_bio(file_name: str, paragraph_separators: Set[str]=None,
     return texts, named_entities
 
 
+def get_bio_label_of_token(source_text: str, token_bounds: Tuple[int, int],
+                           named_entities: Dict[str, List[Tuple[int, int]]]) -> str:
+    best_ne_type = ''
+    best_ne_idx = None
+    best_similarity = 0
+    for ne_type in named_entities:
+        for ne_idx, ne_bounds in enumerate(named_entities[ne_type]):
+            if ne_bounds[1] <= token_bounds[0]:
+                continue
+            if ne_bounds[0] >= token_bounds[1]:
+                continue
+            if (ne_bounds[0] <= token_bounds[0]) and (ne_bounds[1] >= token_bounds[1]):
+                new_similarity = token_bounds[1] - token_bounds[0]
+            elif (ne_bounds[0] >= token_bounds[0]) and (ne_bounds[1] <= token_bounds[1]):
+                new_similarity = ne_bounds[1] - ne_bounds[0]
+            elif ne_bounds[0] <= token_bounds[0]:
+                new_similarity = ne_bounds[1] - token_bounds[0]
+            else:
+                new_similarity = token_bounds[1] - ne_bounds[0]
+            if new_similarity > best_similarity:
+                best_similarity = new_similarity
+                best_ne_type = ne_type
+                best_ne_idx = ne_idx
+    if (len(best_ne_type) == 0) or (best_ne_idx is None):
+        return 'O'
+    if best_similarity < ((token_bounds[1] - token_bounds[0]) // 2):
+        return 'O'
+    if token_bounds[0] <= named_entities[best_ne_type][best_ne_idx][0]:
+        return 'B-' + best_ne_type
+    if len(source_text[named_entities[best_ne_type][best_ne_idx][0]:token_bounds[0]].strip()) == 0:
+        return 'B-' + best_ne_type
+    return 'I-' + best_ne_type
+
+
+def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array],
+                        result_file_name: str, stopwords: Set[str]=None):
+    sample_idx = 0
+    char_idx = 0
+    line_idx = 1
+    src_fp = None
+    dst_fp = None
+    is_new_line = True
+    try:
+        src_fp = codecs.open(source_file_name, mode='r', encoding='utf-8', errors='ignore')
+        dst_fp = codecs.open(result_file_name, mode='w', encoding='utf-8', errors='ignore')
+        cur_line = src_fp.readline()
+        while len(cur_line) > 0:
+            prep_line = cur_line.strip()
+            if len(prep_line) > 0:
+                err_msg = 'File `{0}`: line {1} is wrong!'.format(source_file_name, line_idx)
+                parts_of_line = prep_line.split()
+                if len(parts_of_line) < 2:
+                    raise ValueError(err_msg)
+                token_text = parts_of_line[0]
+                if (stopwords is None) or (token_text not in stopwords):
+                    is_new_line = False
+                    found_idx = X[sample_idx][char_idx:].find(token_text)
+                    if found_idx < 0:
+                        if sample_idx < (len(X) - 1):
+                            found_idx = X[sample_idx + 1].find(token_text)
+                            if found_idx < 0:
+                                raise ValueError(err_msg + ' Token `{0}` cannot be found in the text `{1}`!'.format(
+                                    token_text, X[sample_idx]))
+                            else:
+                                sample_idx += 1
+                                char_idx = found_idx
+                        else:
+                            raise ValueError(err_msg + ' Token `{0}` cannot be found in the text `{1}`!'.format(
+                                token_text, X[sample_idx]))
+                    else:
+                        char_idx += found_idx
+                    ne_label = get_bio_label_of_token(X[sample_idx], (char_idx, char_idx + len(token_text)),
+                                                      y[sample_idx])
+                    dst_fp.write('{0}\t{1}\n'.format(token_text, ne_label))
+                    char_idx += len(token_text)
+            else:
+                if not is_new_line:
+                    dst_fp.write('\n')
+                is_new_line = True
+            cur_line = src_fp.readline()
+            line_idx += 1
+    finally:
+        if src_fp is not None:
+            src_fp.close()
+        if dst_fp is not None:
+            dst_fp.close()
+
+
 def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]) -> \
         Tuple[Union[list, tuple, np.array], Union[list, tuple, np.array]]:
     X_new = []
