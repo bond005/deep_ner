@@ -408,7 +408,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 found_idx_1 = source_text[start_pos:].find(cur_word)
                 if found_idx_1 < 0:
                     raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
-                subwords = self.tokenizer_.tokenize(cur_word)
+                cur_word_ = cur_word.lower() if self.tokenizer_.basic_tokenizer.do_lower_case else cur_word
+                subwords = self.tokenizer_.tokenize(cur_word_)
                 if '[UNK]' in subwords:
                     tokenized_text.append('[UNK]')
                     bounds_of_tokens_for_text.append((start_pos + found_idx_1, start_pos + found_idx_1 + len(cur_word)))
@@ -417,10 +418,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     for cur_subword in subwords:
                         if cur_subword.startswith('##'):
                             subword_len = len(cur_subword) - 2
-                            found_idx_2 = cur_word[start_pos_2:].find(cur_subword[2:])
+                            found_idx_2 = cur_word_[start_pos_2:].find(cur_subword[2:])
                         else:
                             subword_len = len(cur_subword)
-                            found_idx_2 = cur_word[start_pos_2:].find(cur_subword)
+                            found_idx_2 = cur_word_[start_pos_2:].find(cur_subword)
                         if found_idx_2 < 0:
                             raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
                         tokenized_text.append(cur_subword)
