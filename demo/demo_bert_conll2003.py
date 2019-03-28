@@ -52,8 +52,17 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
         print('')
         print('The NER has been successfully fitted and saved into the file `{0}`...'.format(model_name))
         y_pred = recognizer.predict(X_val)
-        print('F1 for validation data (with accounting of fuzzy mathing of true entities and predicted ones) is '
-              '{0:.6f}.'.format(calculate_prediction_quality(y_val, y_pred, classes_list=recognizer.classes_list_)))
+        f1, precision, recall, quality_by_entities = calculate_prediction_quality(y_val, y_pred,
+                                                                                  classes_list=recognizer.classes_list_)
+        print('All entities:')
+        print('    F1-score is {0:.2%}.'.format(f1))
+        print('    Precision is {0:.2%}.'.format(precision))
+        print('    Recall is {0:.2%}.'.format(recall))
+        for ne_type in sorted(list(quality_by_entities.keys())):
+            print('  {0}'.format(ne_type))
+            print('    F1-score is {0:.2%}.'.format(quality_by_entities[ne_type][0]))
+            print('    Precision is {0:.2%}.'.format(quality_by_entities[ne_type][1]))
+            print('    Recall is {0:.2%}.'.format(quality_by_entities[ne_type][2]))
         print('')
     return recognizer
 
