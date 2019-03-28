@@ -1011,13 +1011,13 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
         while len(cur_line) > 0:
             prep_line = cur_line.strip()
             if len(prep_line) > 0:
+                is_new_line = False
                 err_msg = 'File `{0}`: line {1} is wrong!'.format(source_file_name, line_idx)
                 parts_of_line = prep_line.split()
                 if len(parts_of_line) < 2:
                     raise ValueError(err_msg)
                 token_text = parts_of_line[0]
                 if (stopwords is None) or (token_text not in stopwords):
-                    is_new_line = False
                     found_idx = X[sample_idx][char_idx:].find(token_text)
                     if found_idx < 0:
                         if sample_idx < (len(X) - 1):
@@ -1035,8 +1035,10 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
                         char_idx += found_idx
                     ne_label = get_bio_label_of_token(X[sample_idx], (char_idx, char_idx + len(token_text)),
                                                       y[sample_idx])
-                    dst_fp.write('{0}\t{1}\n'.format(token_text, ne_label))
+                    dst_fp.write('{0}\n'.format(' '.join(parts_of_line + [ne_label])))
                     char_idx += len(token_text)
+                else:
+                    dst_fp.write('{0}\n'.format(' '.join(parts_of_line + ['O'])))
             else:
                 if not is_new_line:
                     dst_fp.write('\n')
