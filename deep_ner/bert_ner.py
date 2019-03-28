@@ -103,6 +103,18 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         self.tokenizer_ = self.initialize_bert_tokenizer()
         X_train_tokenized, y_train_tokenized, self.shapes_list_, bounds_of_tokens_for_training = self.tokenize_all(
             X_train_, y_train_)
+        if self.verbose:
+            lengths_of_texts = []
+            sum_of_lengths = 0
+            for sample_idx in range(len(y_train_)):
+                lengths_of_texts.append(sum(X_train_tokenized[1][sample_idx]))
+                sum_of_lengths += lengths_of_texts[-1]
+            mean_length = sum_of_lengths / float(len(lengths_of_texts))
+            lengths_of_texts.sort()
+            bert_ner_logger.info('Maximal length of text (in BPE): {0}'.format(max(lengths_of_texts)))
+            bert_ner_logger.info('Mean length of text (in BPE): {0}'.format(mean_length))
+            bert_ner_logger.info('Median length of text (in BPE): {0}'.format(
+                lengths_of_texts[len(lengths_of_texts) // 2]))
         X_train_tokenized, y_train_tokenized, _ = self.extend_Xy(
             X_train_tokenized, bounds_of_tokens_for_training, y_train_tokenized, shuffle=True)
         del bounds_of_tokens_for_training
