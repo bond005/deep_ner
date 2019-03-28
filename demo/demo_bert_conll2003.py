@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-import codecs
 import logging
 import os
 import pickle
