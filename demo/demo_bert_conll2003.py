@@ -64,6 +64,8 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
             print('    Precision is {0:.2%}.'.format(quality_by_entities[ne_type][1]))
             print('    Recall is {0:.2%}.'.format(quality_by_entities[ne_type][2]))
         print('')
+        with open(model_name, 'wb') as fp:
+            pickle.dump(recognizer, fp)
     return recognizer
 
 
@@ -76,8 +78,17 @@ def recognize(test_file_name: str, split_by_paragraphs: bool, recognizer: BERT_N
     print('Number of samples is {0}.'.format(len(y_test)))
     print('')
     y_pred = recognizer.predict(X_test)
-    print('F1 for test data (with accounting of fuzzy mathing of true entities and predicted ones) is '
-          '{0:.6f}.'.format(calculate_prediction_quality(y_test, y_pred, classes_list=recognizer.classes_list_)))
+    f1, precision, recall, quality_by_entities = calculate_prediction_quality(y_test, y_pred,
+                                                                              classes_list=recognizer.classes_list_)
+    print('All entities:')
+    print('    F1-score is {0:.2%}.'.format(f1))
+    print('    Precision is {0:.2%}.'.format(precision))
+    print('    Recall is {0:.2%}.'.format(recall))
+    for ne_type in sorted(list(quality_by_entities.keys())):
+        print('  {0}'.format(ne_type))
+        print('    F1-score is {0:.2%}.'.format(quality_by_entities[ne_type][0]))
+        print('    Precision is {0:.2%}.'.format(quality_by_entities[ne_type][1]))
+        print('    Recall is {0:.2%}.'.format(quality_by_entities[ne_type][2]))
     print('')
     save_dataset_as_bio(test_file_name, X_test, y_pred, results_file_name, stopwords={'-DOCSTART-'})
 
