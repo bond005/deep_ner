@@ -41,7 +41,7 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
         print('Number of samples for validation is {0}.'.format(len(y_val)))
         print('')
         if BERT_NER.PATH_TO_BERT is None:
-            bert_hub_module_handle = 'https://tfhub.dev/google/bert_uncased_L-24_H-1024_A-16/1'
+            bert_hub_module_handle = 'https://tfhub.dev/google/bert_cased_L-24_H-1024_A-16/1'
         else:
             bert_hub_module_handle = None
         recognizer = BERT_NER(
@@ -120,7 +120,7 @@ def main():
                         default=False, help='Will be the BERT and CRF finetuned together? Or the BERT will be frozen?')
     parser.add_argument('--path_to_bert', dest='path_to_bert', required=False, type=str,
                         default=None, help='Path to the BERT model (if it is not specified, than the standard '
-                                           'large uncased BERT model from the TF-Hub will be used).')
+                                           'large cased BERT model from the TF-Hub will be used).')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
     args = parser.parse_args()
