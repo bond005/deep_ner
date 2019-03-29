@@ -28,11 +28,13 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
     else:
         X_train, y_train = load_dataset_from_bio(
             train_file_name,
-            paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None)
+            paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None),
+            stopwords={'-DOCSTART-'}
         )
         X_val, y_val = load_dataset_from_bio(
             valid_file_name,
-            paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None)
+            paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None),
+            stopwords={'-DOCSTART-'}
         )
         print('The CoNLL-2003 data for training and validation have been loaded...')
         print('Number of samples for training is {0}.'.format(len(y_train)))
@@ -72,7 +74,8 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
 def recognize(test_file_name: str, split_by_paragraphs: bool, recognizer: BERT_NER, results_file_name: str):
     X_test, y_test = load_dataset_from_bio(
         test_file_name,
-        paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None)
+        paragraph_separators=({'-DOCSTART-'} if split_by_paragraphs else None),
+        stopwords={'-DOCSTART-'}
     )
     print('The CoNLL-2003 data for final testing have been loaded...')
     print('Number of samples is {0}.'.format(len(y_test)))
