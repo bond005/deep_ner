@@ -213,7 +213,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 self.finalize_model()
                 _, accuracy = self.build_model()
                 self.load_model(tmp_model_name)
-                if self.verbose and (bounds_of_batches_for_validation is not None):
+                if self.verbose:
                     acc_test = 0.0
                     y_pred = []
 
