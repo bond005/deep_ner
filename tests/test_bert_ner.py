@@ -1453,14 +1453,19 @@ class TestBertNer(unittest.TestCase):
         dst = '[UNK]'
         self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
-    def test_get_shape_of_string_negative(self):
-        src = ''
-        dst = ''
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
-
     def test_get_shape_of_string_positive07(self):
         src = '…'
         dst = 'U'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+
+    def test_get_shape_of_string_positive08(self):
+        src = ','
+        dst = 'P'
+        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+
+    def test_get_shape_of_string_negative(self):
+        src = ''
+        dst = ''
         self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
 
     def test_get_subword_ID_positive01(self):

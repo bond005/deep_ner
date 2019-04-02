@@ -1318,6 +1318,11 @@ class TestELMoNER(unittest.TestCase):
         dst = 'U'
         self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
 
+    def test_get_shape_of_string_positive06(self):
+        src = ','
+        dst = 'P'
+        self.assertEqual(dst, ELMo_NER.get_shape_of_string(src))
+
     def test_get_shape_of_string_negative(self):
         src = ''
         dst = ''

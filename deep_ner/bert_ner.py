@@ -1142,7 +1142,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 new_char = 'D'
             elif src[idx] in {'.', ',', ':', ';', '-', '+', '!', '?', '#', '@', '$', '&', '=', '^', '`', '~', '*', '/',
                               '\\', '(', ')', '[', ']', '{', '}', "'", '"', '|', '<', '>'}:
-                new_char = src[idx]
+                new_char = 'P'
             elif src[idx] in {chr(8213), chr(8212), chr(8211), chr(8210), chr(8209), chr(8208), chr(11834), chr(173),
                               chr(8722), chr(8259)}:
                 new_char = '-'
