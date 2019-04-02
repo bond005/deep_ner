@@ -769,16 +769,15 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
                                                         recurrent_dropout=0.05, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(sequence_output)
+                    rnn_output = rnn_layer(tf.concat([sequence_output, self.additional_features_], axis=-1))
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
                 with tf.name_scope('bilstm_layer'):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
                                                         recurrent_dropout=0.05, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(sequence_output_stop)
-            self.logits_ = tf.layers.dense(tf.concat([rnn_output, self.additional_features_], axis=-1), n_tags,
-                                           activation=None, kernel_regularizer=tf.nn.l2_loss,
+                    rnn_output = rnn_layer(tf.concat([sequence_output_stop, self.additional_features_], axis=-1))
+            self.logits_ = tf.layers.dense(rnn_output, n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
                                            kernel_initializer=he_init, name='outputs_of_NER')
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
                                                                               sequence_lengths)

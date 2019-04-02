@@ -17,7 +17,7 @@ except:
 
 
 def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool, bert_will_be_tuned: bool,
-          lstm_layer_size: Union[int, None], max_epochs: int, batch_size: int, gpu_memory_frac: float,
+          lstm_layer_size: Union[int, None], l2: float, max_epochs: int, batch_size: int, gpu_memory_frac: float,
           model_name: str) -> BERT_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
@@ -45,7 +45,7 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
         else:
             bert_hub_module_handle = None
         recognizer = BERT_NER(
-            finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=1e-3,
+            finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, max_epochs=max_epochs,
             patience=3, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
             lr=1e-5 if bert_will_be_tuned else 1e-3
@@ -112,6 +112,8 @@ def main():
                         help='Size of mini-batch.')
     parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
                         help='Maximal number of training epochs.')
+    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-3,
+                        help='L2 regularization factor.')
     parser.add_argument('--lstm', dest='lstm_units', type=int, required=False, default=None,
                         help='The LSTM layer size (if it is not specified, than the LSTM layer is not used).')
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
@@ -139,7 +141,7 @@ def main():
         if not os.path.isdir(path_to_bert):
             raise ValueError('The directory `{0}` does not exist!'.format(path_to_bert))
     BERT_NER.PATH_TO_BERT = path_to_bert
-    recognizer = train(train_file_name=train_file_name, valid_file_name=valid_file_name,
+    recognizer = train(train_file_name=train_file_name, valid_file_name=valid_file_name, l2=args.l2_coeff,
                        bert_will_be_tuned=args.finetune_bert, max_epochs=args.max_epochs, batch_size=args.batch_size,
                        gpu_memory_frac=args.gpu_memory_frac, model_name=os.path.normpath(args.model_name),
                        lstm_layer_size=args.lstm_units, split_by_paragraphs=(args.text_unit == 'paragraph'))
