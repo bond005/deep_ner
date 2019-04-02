@@ -9,13 +9,15 @@ Installing
 ----------
 
 
-To install this project on your local machine, you should run the following commands in Terminal:
+For installation you need to Python 3.6 or later. To install this project on your local machine, you should run the following commands in the Terminal:
 
 ```
 git clone https://github.com/bond005/deep_ner.git
 cd deep_ner
 sudo python setup.py install
 ```
+
+If you want to install the **Deep-NER** into a some virtual environment, than you don't need to use `sudo`, but before installing you have to activate this virtual environment (for example, using `source /path/to/your/python/environment/bin/activate` in the command prompt).
 
 You can also run the tests
 
