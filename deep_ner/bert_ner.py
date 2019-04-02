@@ -108,18 +108,18 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
 
-        train_dataset = NER_dataset(texts=X_train_, annotations=y_train_)
+        train_dataset = NER_dataset(texts=X_train_, annotations=y_train_, bert_hub_module_handle=self.bert_hub_module_handle)
         self.shapes_list_ = train_dataset.shapes_list_
-        print('self.shapes_list', len(self.shapes_list_))
+        # print('self.shapes_list', len(self.shapes_list_))
         train_loader = DataLoader(dataset=train_dataset,
                                   batch_size=self.batch_size,
                                   shuffle=True)
 
-        valid_dataset = NER_dataset(texts=X_val_, annotations=y_val_, shapes_list= self.shapes_list_)
+        valid_dataset = NER_dataset(texts=X_val_, annotations=y_val_, shapes_list= self.shapes_list_, bert_hub_module_handle=self.bert_hub_module_handle)
         valid_loader = DataLoader(dataset=valid_dataset,
                                   batch_size=self.batch_size,
                                   shuffle=False)
-        print('self.shapes_list', len(self.shapes_list_))
+        # print('self.shapes_list', len(self.shapes_list_))
         train_op, accuracy = self.build_model()
         init = tf.global_variables_initializer()
         init.run(session=self.sess_)
@@ -133,21 +133,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 # Train
                 feed_dict_for_batch = None
                 for X_batch, y_batch in train_loader:
-                    # debug
-                    # print([len(s) for s in X_batch])
-                    print([s.shape for s in X_batch])
-                    # print([len(s) for s in y_batch])
-
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     self.sess_.run(train_op, feed_dict=feed_dict_for_batch)
                 acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
                 # Validation
                 acc_test = 0.0
                 y_pred = []
-                print('validation')
                 for X_batch, y_batch in valid_loader:
-                    print([s.shape for s in X_batch])
-                    # print([len(s) for s in y_batch])
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     acc_test_, logits, trans_params, mask = self.sess_.run(
                         [accuracy, self.logits_, self.transition_params_, self.input_mask_],

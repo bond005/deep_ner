@@ -27,6 +27,7 @@ class BaseDataset:
 
 
 class NER_dataset(BaseDataset):
+    PATH_TO_BERT = '/mnt/data/jupyter/zp_deep_ner/pretrained/rubert_cased_L-12_H-768_A-12_v1'
 
     def __init__(self, texts, annotations, max_seq_length=512, transforms=None, bert_hub_module_handle: Union[str, None]='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', mode='train', shapes_list=None):
         assert len(texts) == len(annotations)
@@ -435,3 +436,19 @@ class NER_dataset(BaseDataset):
                     res[token_idx] = ne_id * 2
             prev_label_id = cur_label_id
         return res
+
+    @staticmethod
+    def check_path_to_bert(dir_name: str) -> bool:
+        if not os.path.isdir(dir_name):
+            return False
+        if not os.path.isfile(os.path.join(dir_name, 'vocab.txt')):
+            return False
+        if not os.path.isfile(os.path.join(dir_name, 'bert_model.ckpt.data-00000-of-00001')):
+            return False
+        if not os.path.isfile(os.path.join(dir_name, 'bert_model.ckpt.index')):
+            return False
+        if not os.path.isfile(os.path.join(dir_name, 'bert_model.ckpt.meta')):
+            return False
+        if not os.path.isfile(os.path.join(dir_name, 'bert_config.json')):
+            return False
+        return True
