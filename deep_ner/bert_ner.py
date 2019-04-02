@@ -448,7 +448,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if len(tokenized_text) > (self.max_seq_length - 2):
                 tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
                 bounds_of_tokens_for_text = bounds_of_tokens_for_text[:(self.max_seq_length - 2)]
-            shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
+            shapes_of_text = [self.get_shape_of_string(source_text[cur[0]:cur[1]]) for cur in bounds_of_tokens_for_text]
             if shapes_vocabulary is None:
                 for cur_shape in shapes_of_text:
                     if cur_shape != '[UNK]':
