@@ -35,10 +35,8 @@ class TestBertNer(unittest.TestCase):
         self.ner = BERT_NER()
         self.assertIsInstance(self.ner, BERT_NER)
         self.assertTrue(hasattr(self.ner, 'batch_size'))
-        self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.ner, 'clip_norm'))
         self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
@@ -49,10 +47,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.ner, 'verbose'))
         self.assertIsInstance(self.ner.batch_size, int)
-        self.assertIsInstance(self.ner.lstm_units, int)
         self.assertIsInstance(self.ner.lr, float)
         self.assertIsInstance(self.ner.l2_reg, float)
-        self.assertIsInstance(self.ner.clip_norm, float)
         self.assertIsInstance(self.ner.bert_hub_module_handle, str)
         self.assertIsInstance(self.ner.finetune_bert, bool)
         self.assertIsInstance(self.ner.max_epochs, int)
@@ -66,8 +62,8 @@ class TestBertNer(unittest.TestCase):
     def test_check_params_positive(self):
         BERT_NER.check_params(
             bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', finetune_bert=True,
-            batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-            max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=None
+            batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3,
+            gpu_memory_frac=1.0, verbose=False, random_seed=42
         )
         self.assertTrue(True)
 
@@ -75,9 +71,8 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('`bert_hub_module_handle` is not specified!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative002(self):
@@ -86,8 +81,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle=1, finetune_bert=True,
-                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10,
+                patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative003(self):
@@ -95,8 +90,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative004(self):
@@ -105,9 +100,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size='32', max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size='32', max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative005(self):
@@ -115,9 +109,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=-3, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=-3, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative006(self):
@@ -125,8 +118,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative007(self):
@@ -135,9 +128,9 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs='10', patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42
             )
 
     def test_check_params_negative008(self):
@@ -145,9 +138,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative009(self):
@@ -155,9 +147,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative010(self):
@@ -166,9 +157,9 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42
             )
 
     def test_check_params_negative011(self):
@@ -176,9 +167,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative012(self):
@@ -186,8 +176,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative013(self):
@@ -196,9 +186,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length='512', lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length='512', lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative014(self):
@@ -207,9 +196,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=-3, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=-3, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative015(self):
@@ -217,8 +205,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative016(self):
@@ -227,9 +215,9 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42
             )
 
     def test_check_params_negative017(self):
@@ -238,9 +226,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative018(self):
@@ -249,9 +236,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative019(self):
@@ -259,8 +245,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42
             )
 
     def test_check_params_negative020(self):
@@ -269,9 +255,9 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0', verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42
             )
 
     def test_check_params_negative021(self):
@@ -280,9 +266,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative022(self):
@@ -291,9 +276,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42
             )
 
     def test_check_params_negative023(self):
@@ -301,9 +285,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative024(self):
@@ -312,9 +295,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative025(self):
@@ -323,9 +305,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative026(self):
@@ -333,9 +314,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative027(self):
@@ -344,9 +324,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative028(self):
@@ -355,9 +334,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative029(self):
@@ -365,8 +343,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative030(self):
@@ -375,9 +353,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg='1e-4', clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg='1e-4',
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative031(self):
@@ -386,9 +363,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=-2.0, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=-2.0,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative032(self):
@@ -396,8 +372,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, clip_norm=5.0,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative033(self):
@@ -406,9 +382,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert='True', batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                finetune_bert='True', batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
             )
 
     def test_check_params_negative034(self):
@@ -416,8 +391,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42, lstm_units=128
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42
             )
 
     def test_check_params_negative035(self):
@@ -426,39 +401,9 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
+                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose='False',
-                random_seed=42, lstm_units=128
-            )
-
-    def test_check_params_negative036(self):
-        true_err_msg = re.escape('`lstm_units` is not specified!')
-        with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_params(
-                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
-            )
-
-    def test_check_params_negative037(self):
-        true_err_msg = re.escape('`lstm_units` is wrong! Expected `{0}`, got `{1}`.'.format(
-            type(3), type('3')))
-        with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_params(
-                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                lstm_units='128', finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                clip_norm=5.0, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
                 random_seed=42
-            )
-
-    def test_check_params_negative038(self):
-        true_err_msg = re.escape('`lstm_units` is wrong! Expected a positive integer value, but -3 is not positive.')
-        with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_params(
-                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=-3
             )
 
     def test_check_X_positive(self):
@@ -966,15 +911,13 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, lstm_units=32)
+                            validation_fraction=0.3, random_seed=None)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'clip_norm'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
@@ -985,10 +928,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.clip_norm, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
@@ -1017,15 +958,13 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=True, max_epochs=3, batch_size=2, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=42, lstm_units=32)
+                            validation_fraction=0.3, random_seed=42)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'clip_norm'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
@@ -1036,10 +975,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.clip_norm, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
@@ -1069,15 +1006,13 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive03(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, lstm_units=None, clip_norm=None)
+                            validation_fraction=0.3, random_seed=None)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'clip_norm'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
@@ -1088,10 +1023,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
-        self.assertIsNone(res.lstm_units)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsNone(res.clip_norm, None)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
@@ -1125,10 +1058,8 @@ class TestBertNer(unittest.TestCase):
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'clip_norm'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
@@ -1139,10 +1070,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.clip_norm, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
@@ -1192,10 +1121,8 @@ class TestBertNer(unittest.TestCase):
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'batch_size'))
-        self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
-        self.assertTrue(hasattr(res, 'clip_norm'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
         self.assertTrue(hasattr(res, 'max_epochs'))
@@ -1206,10 +1133,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.batch_size, int)
-        self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
-        self.assertIsInstance(res.clip_norm, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
         self.assertIsInstance(res.max_epochs, int)
@@ -1262,10 +1187,8 @@ class TestBertNer(unittest.TestCase):
     def test_serialize_positive02(self):
         self.ner = BERT_NER(random_seed=31)
         old_batch_size = self.ner.batch_size
-        old_lstm_units = self.ner.lstm_units
         old_lr = self.ner.lr
         old_l2_reg = self.ner.l2_reg
-        old_clip_norm = self.ner.clip_norm
         old_bert_hub_module_handle = self.ner.bert_hub_module_handle
         old_finetune_bert = self.ner.finetune_bert
         old_max_epochs = self.ner.max_epochs
@@ -1284,10 +1207,8 @@ class TestBertNer(unittest.TestCase):
             self.ner = pickle.load(fp)
         self.assertIsInstance(self.ner, BERT_NER)
         self.assertTrue(hasattr(self.ner, 'batch_size'))
-        self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.ner, 'clip_norm'))
         self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
@@ -1298,10 +1219,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.ner, 'verbose'))
         self.assertEqual(self.ner.batch_size, old_batch_size)
-        self.assertEqual(self.ner.lstm_units, old_lstm_units)
         self.assertAlmostEqual(self.ner.lr, old_lr)
         self.assertAlmostEqual(self.ner.l2_reg, old_l2_reg)
-        self.assertAlmostEqual(self.ner.clip_norm, old_clip_norm)
         self.assertEqual(self.ner.bert_hub_module_handle, old_bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, old_finetune_bert)
         self.assertEqual(self.ner.max_epochs, old_max_epochs)
@@ -1318,10 +1237,8 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
-        self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'clip_norm'))
         self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
@@ -1332,10 +1249,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
-        self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertAlmostEqual(self.ner.clip_norm, self.another_ner.clip_norm)
         self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
@@ -1356,10 +1271,8 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
-        self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
-        self.assertTrue(hasattr(self.another_ner, 'clip_norm'))
         self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
@@ -1381,10 +1294,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
-        self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
-        self.assertAlmostEqual(self.ner.clip_norm, self.another_ner.clip_norm)
         self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
