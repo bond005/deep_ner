@@ -123,7 +123,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_tokenized = None
             y_val_tokenized = None
             bounds_of_tokens_for_validation = None
-        train_op, accuracy = self.build_model()
+        train_op, loss = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -147,7 +147,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 bert_ner_logger.info('Epoch   Train acc.')
         n_epochs_without_improving = 0
         try:
-            best_acc = None
+            best_quality = None
             for epoch in range(self.max_epochs):
                 random.shuffle(bounds_of_batches_for_training)
                 feed_dict_for_batch = None
@@ -157,19 +157,19 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     y_batch = y_train_tokenized[cur_batch[0]:cur_batch[1]]
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     self.sess_.run(train_op, feed_dict=feed_dict_for_batch)
-                acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
+                loss_train = loss.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
                 if bounds_of_batches_for_validation is not None:
-                    acc_test = 0.0
+                    loss_test = 0.0
                     y_pred = []
                     for cur_batch in bounds_of_batches_for_validation:
                         X_batch = [X_val_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
                                    for channel_idx in range(len(X_val_tokenized))]
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
-                        acc_test_, logits, mask, ner_mask = self.sess_.run(
-                            [accuracy, self.logits_, self.input_mask_, self.ner_mask_], feed_dict=feed_dict_for_batch
+                        loss_test_, logits, mask, ner_mask = self.sess_.run(
+                            [loss, self.logits_, self.input_mask_, self.ner_mask_], feed_dict=feed_dict_for_batch
                         )
-                        acc_test += self.batch_size * acc_test_
+                        loss_test += self.batch_size * loss_test_
                         sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
                         for logit, sequence_length, ner_mask_ in zip(logits, sequence_lengths, ner_mask):
                             logit = logit[:int(sequence_length)]
@@ -177,16 +177,16 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             seq = logit.argmax(axis=-1)
                             prev_ID = seq[0]
                             for token_idx in range(1, int(sequence_length) - 1):
-                                if ner_mask_[token_idx] < 1:
-                                    seq[token_idx] = prev_ID
-                                else:
+                                if ner_mask_[token_idx]:
                                     prev_ID = seq[token_idx]
+                                else:
+                                    seq[token_idx] = prev_ID
                             y_pred += [seq]
-                    acc_test /= float(X_val_tokenized[0].shape[0])
+                    loss_test /= float(X_val_tokenized[0].shape[0])
                     if self.verbose:
                         bert_ner_logger.info('Epoch {0}'.format(epoch))
-                        bert_ner_logger.info('  Train acc.: {0: 10.8f}'.format(acc_train))
-                        bert_ner_logger.info('  Val. acc.:  {0: 10.8f}'.format(acc_test))
+                        bert_ner_logger.info('  Train loss: {0: 10.8f}'.format(loss_train))
+                        bert_ner_logger.info('  Val. loss:  {0: 10.8f}'.format(loss_test))
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
@@ -198,12 +198,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         pred_entities_val.append(new_entities)
                     f1_test, precision_test, recall_test, quality_by_entities = calculate_prediction_quality(
                         y_val_, pred_entities_val, self.classes_list_)
-                    if best_acc is None:
-                        best_acc = f1_test
+                    if best_quality is None:
+                        best_quality = f1_test
                         self.save_model(tmp_model_name)
                         n_epochs_without_improving = 0
-                    elif f1_test > best_acc:
-                        best_acc = f1_test
+                    elif f1_test > best_quality:
+                        best_quality = f1_test
                         self.save_model(tmp_model_name)
                         n_epochs_without_improving = 0
                     else:
@@ -224,12 +224,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                 quality_by_entities[ne_type][2]))
                     del y_pred, pred_entities_val
                 else:
-                    if best_acc is None:
-                        best_acc = acc_train
+                    if best_quality is None:
+                        best_quality = loss_train
                         self.save_model(tmp_model_name)
                         n_epochs_without_improving = 0
-                    elif acc_train > best_acc:
-                        best_acc = acc_train
+                    elif loss_train < best_quality:
+                        best_quality = loss_train
                         self.save_model(tmp_model_name)
                         n_epochs_without_improving = 0
                     else:
@@ -240,23 +240,23 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     if self.verbose:
                         bert_ner_logger.info('Epoch %05d: early stopping' % (epoch + 1))
                     break
-            if best_acc is not None:
+            if best_quality is not None:
                 self.finalize_model()
-                _, accuracy = self.build_model()
+                _, loss = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose and (bounds_of_batches_for_validation is not None):
-                    acc_test = 0.0
+                    loss_test = 0.0
                     y_pred = []
                     for cur_batch in bounds_of_batches_for_validation:
                         X_batch = [X_val_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
                                    for channel_idx in range(len(X_val_tokenized))]
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
-                        acc_test_, logits, mask, ner_mask = self.sess_.run(
-                            [accuracy, self.logits_, self.input_mask_, self.ner_mask_],
+                        loss_test_, logits, mask, ner_mask = self.sess_.run(
+                            [loss, self.logits_, self.input_mask_, self.ner_mask_],
                             feed_dict=feed_dict_for_batch
                         )
-                        acc_test += self.batch_size * acc_test_
+                        loss_test += self.batch_size * loss_test_
                         sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
                         for logit, sequence_length, ner_mask_ in zip(logits, sequence_lengths, ner_mask):
                             logit = logit[:int(sequence_length)]
@@ -264,12 +264,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             seq = logit.argmax(axis=-1)
                             prev_ID = seq[0]
                             for token_idx in range(1, int(sequence_length) - 1):
-                                if ner_mask_[token_idx] < 1:
-                                    seq[token_idx] = prev_ID
-                                else:
+                                if ner_mask_[token_idx]:
                                     prev_ID = seq[token_idx]
+                                else:
+                                    seq[token_idx] = prev_ID
                             y_pred += [seq]
-                    acc_test /= float(X_val_tokenized[0].shape[0])
+                    loss_test /= float(X_val_tokenized[0].shape[0])
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
@@ -282,7 +282,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     f1_test, _, _, _ = calculate_prediction_quality(y_val_, pred_entities_val,
                                                                     self.classes_list_)
                     bert_ner_logger.info('Best val. F1 is {0:>8.6f}'.format(f1_test))
-                    bert_ner_logger.info('Best val. acc. is {0:>10.8f}'.format(acc_test))
+                    bert_ner_logger.info('Best val. loss is {0:>10.8f}'.format(loss_test))
         finally:
             for cur_name in self.find_all_model_files(tmp_model_name):
                 os.remove(cur_name)
@@ -314,8 +314,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     for channel_idx in range(len(X_tokenized))
                 ]
             )
-            logits, trans_params, mask, ner_mask = self.sess_.run([self.logits_, self.input_mask_, self.ner_mask_],
-                                                                  feed_dict=feed_dict)
+            logits, mask, ner_mask = self.sess_.run([self.logits_, self.input_mask_, self.ner_mask_],
+                                                    feed_dict=feed_dict)
             sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
             for logit, sequence_length, ner_mask_ in zip(logits, sequence_lengths, ner_mask):
                 logit = logit[:int(sequence_length)]
@@ -420,7 +420,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             np.zeros((len(X), self.max_seq_length), dtype=np.int32),
             np.zeros((len(X), self.max_seq_length), dtype=np.int32),
             np.zeros((len(X), self.max_seq_length), dtype=np.int32),
-            np.zeros((len(X), self.max_seq_length, 1), dtype=np.float32)
+            np.zeros((len(X), self.max_seq_length), dtype=np.int32)
         ]
         all_tokenized_texts = []
         bounds_of_tokens = []
@@ -471,7 +471,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 for cur_shape in shapes_of_text:
                     if cur_shape != '[UNK]':
                         shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
-            shapes.append(shapes_of_text)
+            if len(shapes_of_text) > (self.max_seq_length - 2):
+                shapes.append(shapes_of_text[0:(self.max_seq_length - 2)])
+            else:
+                shapes.append(shapes_of_text)
             all_tokenized_texts.append(copy.copy(tokenized_text))
             bounds_of_tokens.append(copy.deepcopy(bounds_of_tokens_for_text))
             tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
@@ -481,7 +484,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 X_tokenized[1][sample_idx][token_idx] = 1
                 if (tokenized_text[token_idx] not in {'[CLS]', '[SEP]'}) and \
                         (not tokenized_text[token_idx].startswith('##')):
-                    X_tokenized[3][sample_idx][token_idx][0] = 1.0
+                    X_tokenized[3][sample_idx][token_idx] = 1
             del bounds_of_tokens_for_text, tokenized_text, token_IDs
         if y is None:
             y_tokenized = None
@@ -509,7 +512,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             shapes_vocabulary_ = tuple(shapes_vocabulary_)
         else:
             shapes_vocabulary_ = shapes_vocabulary
-        shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_)), dtype=np.float32)
+        shapes_ = np.zeros((n_samples, self.max_seq_length, len(shapes_vocabulary_)), dtype=np.float32)
         for sample_idx in range(n_samples):
             shape_ID = shapes_vocabulary_.index('[CLS]')
             shapes_[sample_idx][0][shape_ID] = 1.0
@@ -521,7 +524,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 shapes_[sample_idx][token_idx + 1][shape_ID] = 1.0
             shape_ID = shapes_vocabulary_.index('[SEP]')
             shapes_[sample_idx][len(shapes[sample_idx]) + 1][shape_ID] = 1.0
-        X_tokenized.append(np.concatenate((X_tokenized[3], shapes_), axis=-1))
+        X_tokenized[3] = X_tokenized[3].astype(dtype=np.bool)
+        X_tokenized.append(shapes_)
         del shapes_, shapes
         return X_tokenized, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_, \
                np.array(bounds_of_tokens, dtype=np.object)
@@ -732,8 +736,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                           name='input_mask')
         self.segment_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
                                            name='segment_ids')
-        self.ner_mask_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length, 1), dtype=tf.float32,
-                                        name='ner_mask')
+        self.ner_mask_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.bool, name='ner_mask')
         self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
         bert_inputs = dict(
             input_ids=self.input_ids_,
@@ -765,18 +768,20 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive.')
         self.additional_features_ = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
+            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_)), dtype=tf.float32,
             name='additional_features'
         )
         if self.verbose:
             bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
         n_tags = len(self.classes_list_) * 2 + 1
-        with tf.name_scope('ner_output'):
+        with tf.name_scope('ner_head'):
             if self.finetune_bert:
-                masked_input = tf.concat([sequence_output, self.additional_features_], axis=-1) * self.ner_mask_
+                masked_input = tf.concat([sequence_output, self.additional_features_], axis=-1) * \
+                               tf.reshape(tf.cast(self.ner_mask_, dtype=tf.float32), list(self.ner_mask_.shape) + [1])
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
-                masked_input = tf.concat([sequence_output_stop, self.additional_features_], axis=-1) * self.ner_mask_
+                masked_input = tf.concat([sequence_output_stop, self.additional_features_], axis=-1) * \
+                               tf.reshape(tf.cast(self.ner_mask_, dtype=np.float32), list(self.ner_mask_.shape) + [1])
             self.logits_ = tf.keras.layers.TimeDistributed(
                 tf.layers.Dense(
                     units=n_tags, activation='softmax',
@@ -784,17 +789,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg)
                 )
             )(tf.keras.layers.Masking(mask_value=0.)(masked_input))
-        losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits_, labels=self.y_ph_)
-        losses = tf.boolean_mask(losses, self.ner_mask_)
-        final_loss = tf.reduce_mean(losses)
+        with tf.name_scope("loss"):
+            losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits_, labels=self.y_ph_)
+            losses = tf.boolean_mask(losses, self.ner_mask_)
+            final_loss = tf.reduce_mean(losses)
         with tf.name_scope('train'):
             optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
             train_op = optimizer.minimize(final_loss)
-        with tf.name_scope('eval'):
-            seq_scores = tf.metrics.accuracy(self.logits_, self.y_ph_)
-            seq_scores = tf.boolean_mask(seq_scores, self.ner_mask_)
-            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32))
-        return train_op, accuracy
+        return train_op, final_loss
 
     def finalize_model(self):
         if hasattr(self, 'input_ids_'):
