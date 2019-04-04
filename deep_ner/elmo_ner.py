@@ -19,6 +19,18 @@ from .dataset_splitting import split_dataset
 
 elmo_ner_logger = logging.getLogger(__name__)
 
+handlers = []
+
+# stream = logging.StreamHandler()
+# stream.setLevel(logging.DEBUG)
+# handlers.append(stream)
+
+elmo_ner_logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+for handler in handlers:
+    handler.setFormatter(formatter)
+    elmo_ner_logger.addHandler(handler)
+
 
 class ELMo_NER(BaseEstimator, ClassifierMixin):
     def __init__(self, elmo_hub_module_handle: str, finetune_elmo: bool=False,

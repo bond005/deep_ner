@@ -25,7 +25,7 @@ except:
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
-          batch_size: int, lr: float, gpu_memory_frac: float, model_name: str,
+          batch_size: int, lr: float, l2: float, gpu_memory_frac: float, model_name: str,
           collection3_dir: Union[str, None]=None) -> ELMo_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
@@ -57,7 +57,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
             n_tokens *= 2
         elmo_hub_module_handle = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
         recognizer = ELMo_NER(
-            finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=1e-3, max_seq_length=n_tokens,
+            finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=l2, max_seq_length=n_tokens,
             elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.25, max_epochs=max_epochs, patience=5,
             gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr
         )
@@ -172,6 +172,8 @@ def main():
     parser.add_argument('--finetune_elmo', dest='finetune_elmo', required=False, action='store_true',
                         default=False, help='Will be the ELMo and CRF finetuned together? Or the ELMo will be frozen?')
     parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-3, help='Learning rate.')
+    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-3,
+                        help='L2 regularization factor.')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
     args = parser.parse_args()
@@ -183,7 +185,7 @@ def main():
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, elmo_will_be_tuned=args.finetune_elmo,
                        max_epochs=args.max_epochs, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
-                       model_name=os.path.normpath(args.model_name), lr=args.lr,
+                       model_name=os.path.normpath(args.model_name), lr=args.lr, l2=args.l2_coeff,
                        split_by_paragraphs=(args.text_unit == 'paragraph'), collection3_dir=collection3_dir_name)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
               results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))

@@ -271,7 +271,8 @@ class NER_dataset(BaseDataset):
             if len(tokenized_text) > (self.max_seq_length - 2):
                 tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
                 bounds_of_tokens_for_text = bounds_of_tokens_for_text[:(self.max_seq_length - 2)]
-            shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
+            shapes_of_text = [self.get_shape_of_string(source_text[cur[0]:cur[1]]) for cur in bounds_of_tokens_for_text]
+
             if shapes_vocabulary is None:
                 for cur_shape in shapes_of_text:
                     if cur_shape != '[UNK]':
@@ -346,7 +347,7 @@ class NER_dataset(BaseDataset):
                 new_char = 'D'
             elif src[idx] in {'.', ',', ':', ';', '-', '+', '!', '?', '#', '@', '$', '&', '=', '^', '`', '~', '*', '/',
                               '\\', '(', ')', '[', ']', '{', '}', "'", '"', '|', '<', '>'}:
-                new_char = src[idx]
+                new_char = 'P'
             elif src[idx] in {chr(8213), chr(8212), chr(8211), chr(8210), chr(8209), chr(8208), chr(11834), chr(173),
                               chr(8722), chr(8259)}:
                 new_char = '-'
