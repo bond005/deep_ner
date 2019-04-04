@@ -59,9 +59,13 @@ class DataLoader(BaseDataLoader):
         batch_counter = 0
         while self.internal_index < len(self.dataset) and batch_counter < self.batch_size:
             index = self.index_arr[self.internal_index]
-            x, y = self.dataset.__getitem__(index)
-            X_batch.append(x)
-            y_batch.append(y)
+            if self.dataset.mode == 'train':
+                x, y = self.dataset.__getitem__(index)
+                X_batch.append(x)
+                y_batch.append(y)
+            else:
+                x = self.dataset.__getitem__(index)
+                X_batch.append(x)
 
             self.internal_index += 1
             batch_counter += 1
@@ -70,14 +74,24 @@ class DataLoader(BaseDataLoader):
         if batch_counter < self.batch_size:
             for _ in range(self.batch_size - batch_counter):
                 index = random.choice(self.index_arr)
-                x, y = self.dataset.__getitem__(index)
 
-                X_batch.append(x)
-                y_batch.append(y)
+                # x, y = self.dataset.__getitem__(index)
+                # X_batch.append(x)
+                # y_batch.append(y)
+                if self.dataset.mode == 'train':
+                    x, y = self.dataset.__getitem__(index)
+                    X_batch.append(x)
+                    y_batch.append(y)
+                else:
+                    x = self.dataset.__getitem__(index)
+                    X_batch.append(x)
 
-        X_batch, y_batch = self.transform_dataset(X_batch, y_batch)
-
-        return X_batch, y_batch
+        if self.dataset.mode == 'train':
+            X_batch, y_batch = self.transform_dataset(X_batch, y_batch)
+            return X_batch, y_batch
+        else:
+            X_batch, y_batch = self.transform_dataset(X_batch, y_batch=None)
+            return X_batch
 
     def __len__(self):
         return len(self.dataset)
@@ -91,6 +105,6 @@ class DataLoader(BaseDataLoader):
                 x_batch_tr[i_ch].append(channel)
 
         x_batch_tr = [np.stack(sample_ls) for sample_ls in x_batch_tr]
-        y_batch_tr = np.vstack(y_batch)
+        y_batch_tr = np.vstack(y_batch) if y_batch is not None else None
 
         return x_batch_tr, y_batch_tr

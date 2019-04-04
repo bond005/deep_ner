@@ -29,8 +29,8 @@ class BaseDataset:
 class NER_dataset(BaseDataset):
     PATH_TO_BERT = '/mnt/data/jupyter/zp_deep_ner/pretrained/rubert_cased_L-12_H-768_A-12_v1'
 
-    def __init__(self, texts, annotations, max_seq_length=512, transforms=None, bert_hub_module_handle: Union[str, None]='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', mode='train', shapes_list=None):
-        assert len(texts) == len(annotations)
+    def __init__(self, texts, annotations=None, max_seq_length=512, transforms=None, bert_hub_module_handle: Union[str, None]='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', mode='train', shapes_list=None):
+        # assert len(texts) == len(annotations)
 
         self.texts = texts
         self.annotations = annotations
@@ -39,9 +39,9 @@ class NER_dataset(BaseDataset):
         self.annotations_transformed = copy.deepcopy(annotations)
 
         self.transforms = transforms
-
-        self.classes_list_ = self.make_classes_list(annotations)
-        NER_dataset.check_Xy(texts, 'X', annotations, 'y')
+        if annotations:
+            self.classes_list_ = self.make_classes_list(annotations)
+            NER_dataset.check_Xy(texts, 'X', annotations, 'y')
         self.bert_hub_module_handle = bert_hub_module_handle
         self.tokenizer_ = self.__initialize_bert_tokenizer()
         self.nltk_tokenizer_ = NISTTokenizer()
@@ -61,13 +61,17 @@ class NER_dataset(BaseDataset):
     def __getitem__(self, index):
 
         if self.get_counter == 0:
-            # self.recalculate_all()
+            self.recalculate_all()
             self.get_counter = len(self.texts)
 
         self.get_counter -= 1
-        x = [self.X_tokenized[channel_idx][index] for channel_idx in range(len(self.X_tokenized))]
-        y = self.y_tokenized[index]
-        return x, y
+        if self.mode == 'train':
+            x = [self.X_tokenized[channel_idx][index] for channel_idx in range(len(self.X_tokenized))]
+            y = self.y_tokenized[index]
+            return x, y
+        else:
+            x = [self.X_tokenized[channel_idx][index] for channel_idx in range(len(self.X_tokenized))]
+            return x
 
         # text = self.texts[index]
         # annotation = self.annotations[index]
@@ -90,8 +94,12 @@ class NER_dataset(BaseDataset):
             for i, (text, ann) in enumerate(zip(self.texts_transformed, self.annotations_transformed)):
                 self.texts_transformed[i],  self.annotations_transformed[i] = self.transforms.apply(text, ann)
 
-        self.X_tokenized, self.y_tokenized, self.shapes_list_, self.bounds_of_tokens_for_training = self.tokenize_all(
-            self.texts_transformed, self.annotations_transformed, shapes_vocabulary=self.shapes_list_)
+        if self.mode == 'train':
+            self.X_tokenized, self.y_tokenized, self.shapes_list_, self.bounds_of_tokens_for_training = self.tokenize_all(
+                self.texts_transformed, self.annotations_transformed, shapes_vocabulary=self.shapes_list_)
+        else:
+            self.X_tokenized, _, _, self.bounds_of_tokens_for_training = self.tokenize_all(
+                self.texts_transformed, shapes_vocabulary=self.shapes_list_)
 
     @staticmethod
     def make_classes_list(annotations):

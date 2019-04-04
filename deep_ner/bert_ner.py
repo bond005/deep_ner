@@ -25,10 +25,6 @@ bert_ner_logger = logging.getLogger(__name__)
 
 handlers = []
 
-# stream = logging.StreamHandler()
-# stream.setLevel(logging.DEBUG)
-# handlers.append(stream)
-
 bert_ner_logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 for handler in handlers:
@@ -108,10 +104,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
 
-        train_dataset = NER_dataset(texts=X_train_, annotations=y_train_, bert_hub_module_handle=self.bert_hub_module_handle)
-        self.shapes_list_ = train_dataset.shapes_list_
+        self.train_dataset = NER_dataset(texts=X_train_, annotations=y_train_, bert_hub_module_handle=self.bert_hub_module_handle)
+        self.shapes_list_ = self.train_dataset.shapes_list_
         # print('self.shapes_list', len(self.shapes_list_))
-        train_loader = DataLoader(dataset=train_dataset,
+        train_loader = DataLoader(dataset=self.train_dataset,
                                   batch_size=self.batch_size,
                                   shuffle=True)
 
@@ -120,6 +116,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                   batch_size=self.batch_size,
                                   shuffle=False)
         # print('self.shapes_list', len(self.shapes_list_))
+        # Build model
         train_op, accuracy = self.build_model()
         init = tf.global_variables_initializer()
         init.run(session=self.sess_)
@@ -337,21 +334,21 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                                for channel_idx in range(len(X_train_tokenized))]
                     y_batch = y_train_tokenized[cur_batch[0]:cur_batch[1]]
                     # print([len(s) for s in X_batch])
-                    print([s.shape for s in X_batch])
-                    print([len(s) for s in y_batch])
+                    # print([s.shape for s in X_batch])
+                    # print([len(s) for s in y_batch])
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     self.sess_.run(train_op, feed_dict=feed_dict_for_batch)
                 acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
                 if bounds_of_batches_for_validation is not None:
                     acc_test = 0.0
                     y_pred = []
-                    print('validataion')
+                    # print('validataion')
                     for cur_batch in bounds_of_batches_for_validation:
                         X_batch = [X_val_tokenized[channel_idx][cur_batch[0]:cur_batch[1]]
                                    for channel_idx in range(len(X_val_tokenized))]
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
-                        print([s.shape for s in X_batch])
-                        print([len(s) for s in y_batch])
+                        # print([s.shape for s in X_batch])
+                        # print([len(s) for s in y_batch])
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params, mask = self.sess_.run(
                             [accuracy, self.logits_, self.transition_params_, self.input_mask_],
@@ -506,8 +503,54 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             recognized_entities_in_texts.append(new_entities)
         return recognized_entities_in_texts
 
+    def predict_b(self, X: Union[list, tuple, np.array]) -> List[Dict[str, List[Tuple[int, int]]]]:
+        self.check_params(
+            bert_hub_module_handle=self.bert_hub_module_handle, finetune_bert=self.finetune_bert,
+            lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
+            l2_reg=self.l2_reg, validation_fraction=self.validation_fraction, max_epochs=self.max_epochs,
+            patience=self.patience, gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose,
+            random_seed=self.random_seed, clip_norm=self.clip_norm
+        )
+
+        self.is_fitted()
+        # Create Dataset
+        NER_dataset.check_X(X, 'X')
+        test_dataset = NER_dataset(texts=X, annotations=None,
+                                   shapes_list=self.shapes_list_,
+                                   bert_hub_module_handle=self.bert_hub_module_handle,
+                                   mode='test')
+        test_loader = DataLoader(dataset=test_dataset,
+                                  batch_size=self.batch_size,
+                                  shuffle=False)
+
+        y_pred = []
+        for X_batch in test_loader:
+            feed_dict = self.fill_feed_dict(X_batch)
+            # feed_dict = self.fill_feed_dict(
+            #     [
+            #         X_batch[channel_idx] for channel_idx in range(len(X_batch))
+            #     ]
+            # )
+            logits, trans_params, mask = self.sess_.run([self.logits_, self.transition_params_, self.input_mask_],
+                                                        feed_dict=feed_dict)
+            sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
+            for logit, sequence_length in zip(logits, sequence_lengths):
+                logit = logit[:int(sequence_length)]
+                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                y_pred += [viterbi_seq]
+
+        bounds_of_tokens = test_dataset.bounds_of_tokens_for_training
+        recognized_entities_in_texts = list()
+        n_samples = len(X)
+        for sample_idx, labels_in_text in enumerate(y_pred[0: n_samples]):
+            n_tokens = len(labels_in_text)
+            new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens[sample_idx], self.classes_list_,
+                                                                   labels_in_text[1:(n_tokens - 1)])
+            recognized_entities_in_texts.append(new_entities)
+        return recognized_entities_in_texts
+
     def is_fitted(self):
-        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_', 'tokenizer_',
+        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_',
                                'input_ids_', 'input_mask_', 'segment_ids_', 'additional_features_', 'y_ph_', 'sess_'])
 
     def score(self, X, y, sample_weight=None) -> float:
