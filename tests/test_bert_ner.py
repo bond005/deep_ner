@@ -39,6 +39,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
         self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.ner, 'finetune_bert'))
+        self.assertTrue(hasattr(self.ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
         self.assertTrue(hasattr(self.ner, 'patience'))
         self.assertTrue(hasattr(self.ner, 'random_seed'))
@@ -51,6 +52,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(self.ner.l2_reg, float)
         self.assertIsInstance(self.ner.bert_hub_module_handle, str)
         self.assertIsInstance(self.ner.finetune_bert, bool)
+        self.assertIsInstance(self.ner.use_additional_features, bool)
         self.assertIsInstance(self.ner.max_epochs, int)
         self.assertIsInstance(self.ner.patience, int)
         self.assertIsNone(self.ner.random_seed)
@@ -63,7 +65,7 @@ class TestBertNer(unittest.TestCase):
         BERT_NER.check_params(
             bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', finetune_bert=True,
             batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3,
-            gpu_memory_frac=1.0, verbose=False, random_seed=42
+            gpu_memory_frac=1.0, verbose=False, random_seed=42, use_additional_features=True
         )
         self.assertTrue(True)
 
@@ -72,7 +74,8 @@ class TestBertNer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative002(self):
@@ -82,7 +85,7 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle=1, finetune_bert=True,
                 batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10,
-                patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, use_additional_features=True
             )
 
     def test_check_params_negative003(self):
@@ -91,7 +94,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative004(self):
@@ -101,7 +105,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size='32', max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative005(self):
@@ -110,7 +115,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=-3, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative006(self):
@@ -119,7 +125,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative007(self):
@@ -130,7 +137,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs='10', patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+                random_seed=42, use_additional_features=True
             )
 
     def test_check_params_negative008(self):
@@ -139,7 +146,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative009(self):
@@ -148,7 +156,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative010(self):
@@ -159,7 +168,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+                random_seed=42, use_additional_features=True
             )
 
     def test_check_params_negative011(self):
@@ -168,7 +177,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative012(self):
@@ -177,7 +187,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative013(self):
@@ -187,7 +198,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length='512', lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative014(self):
@@ -197,7 +209,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=-3, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative015(self):
@@ -206,7 +219,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative016(self):
@@ -217,7 +231,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+                random_seed=42, use_additional_features=True
             )
 
     def test_check_params_negative017(self):
@@ -227,7 +241,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative018(self):
@@ -237,7 +252,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative019(self):
@@ -246,7 +262,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative020(self):
@@ -257,7 +274,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0', verbose=False,
-                random_seed=42
+                random_seed=42, use_additional_features=True
             )
 
     def test_check_params_negative021(self):
@@ -267,7 +284,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative022(self):
@@ -277,7 +295,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative023(self):
@@ -286,7 +305,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative024(self):
@@ -296,7 +316,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative025(self):
@@ -306,7 +327,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative026(self):
@@ -315,7 +337,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative027(self):
@@ -325,7 +348,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative028(self):
@@ -335,7 +359,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative029(self):
@@ -344,7 +369,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative030(self):
@@ -354,7 +380,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg='1e-4',
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative031(self):
@@ -364,7 +391,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=-2.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative032(self):
@@ -373,7 +401,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative033(self):
@@ -383,7 +412,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert='True', batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features = True
             )
 
     def test_check_params_negative034(self):
@@ -392,7 +422,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42,
+                use_additional_features=True
             )
 
     def test_check_params_negative035(self):
@@ -403,6 +434,26 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose='False',
+                random_seed=42, use_additional_features=True
+            )
+
+    def test_check_params_negative036(self):
+        true_err_msg = re.escape('`use_additional_features` is not specified!')
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=False, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+            )
+
+    def test_check_params_negative037(self):
+        true_err_msg = re.escape('`use_additional_features` is wrong! Expected `{0}`, got `{1}`.'.format(
+            type(True), type('3')))
+        with self.assertRaisesRegex(ValueError, true_err_msg):
+            BERT_NER.check_params(
+                bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                finetune_bert=False, use_additional_features='True', batch_size=32, max_seq_length=512, lr=1e-3,
+                l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
                 random_seed=42
             )
 
@@ -920,6 +971,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'l2_reg'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -932,6 +984,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.l2_reg, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -967,6 +1020,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'l2_reg'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -979,6 +1033,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.l2_reg, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1006,7 +1061,7 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive03(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None)
+                            validation_fraction=0.3, random_seed=None, use_additional_features=False)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
@@ -1015,6 +1070,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'l2_reg'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1027,6 +1083,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.l2_reg, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1062,6 +1119,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'l2_reg'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1074,6 +1132,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.l2_reg, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1125,6 +1184,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'l2_reg'))
         self.assertTrue(hasattr(res, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(res, 'finetune_bert'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
         self.assertTrue(hasattr(res, 'max_epochs'))
         self.assertTrue(hasattr(res, 'patience'))
         self.assertTrue(hasattr(res, 'random_seed'))
@@ -1137,6 +1197,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.l2_reg, float)
         self.assertIsInstance(res.bert_hub_module_handle, str)
         self.assertIsInstance(res.finetune_bert, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertIsInstance(res.max_epochs, int)
         self.assertIsInstance(res.patience, int)
         self.assertIsInstance(res.random_seed, int)
@@ -1191,6 +1252,7 @@ class TestBertNer(unittest.TestCase):
         old_l2_reg = self.ner.l2_reg
         old_bert_hub_module_handle = self.ner.bert_hub_module_handle
         old_finetune_bert = self.ner.finetune_bert
+        old_use_additional_features = self.ner.use_additional_features
         old_max_epochs = self.ner.max_epochs
         old_patience = self.ner.patience
         old_random_seed = self.ner.random_seed
@@ -1211,6 +1273,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
         self.assertTrue(hasattr(self.ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.ner, 'finetune_bert'))
+        self.assertTrue(hasattr(self.ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.ner, 'max_epochs'))
         self.assertTrue(hasattr(self.ner, 'patience'))
         self.assertTrue(hasattr(self.ner, 'random_seed'))
@@ -1223,6 +1286,7 @@ class TestBertNer(unittest.TestCase):
         self.assertAlmostEqual(self.ner.l2_reg, old_l2_reg)
         self.assertEqual(self.ner.bert_hub_module_handle, old_bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, old_finetune_bert)
+        self.assertEqual(self.ner.use_additional_features, old_use_additional_features)
         self.assertEqual(self.ner.max_epochs, old_max_epochs)
         self.assertEqual(self.ner.patience, old_patience)
         self.assertAlmostEqual(self.ner.gpu_memory_frac, old_gpu_memory_frac)
@@ -1241,6 +1305,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
         self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
+        self.assertTrue(hasattr(self.another_ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
         self.assertTrue(hasattr(self.another_ner, 'patience'))
         self.assertTrue(hasattr(self.another_ner, 'random_seed'))
@@ -1253,6 +1318,7 @@ class TestBertNer(unittest.TestCase):
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
         self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
+        self.assertEqual(self.ner.use_additional_features, self.another_ner.use_additional_features)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
         self.assertEqual(self.ner.patience, self.another_ner.patience)
         self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
@@ -1275,6 +1341,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
         self.assertTrue(hasattr(self.another_ner, 'bert_hub_module_handle'))
         self.assertTrue(hasattr(self.another_ner, 'finetune_bert'))
+        self.assertTrue(hasattr(self.another_ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.another_ner, 'max_epochs'))
         self.assertTrue(hasattr(self.another_ner, 'patience'))
         self.assertTrue(hasattr(self.another_ner, 'random_seed'))
@@ -1298,6 +1365,7 @@ class TestBertNer(unittest.TestCase):
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)
         self.assertEqual(self.ner.bert_hub_module_handle, self.another_ner.bert_hub_module_handle)
         self.assertEqual(self.ner.finetune_bert, self.another_ner.finetune_bert)
+        self.assertEqual(self.ner.use_additional_features, self.another_ner.use_additional_features)
         self.assertEqual(self.ner.max_epochs, self.another_ner.max_epochs)
         self.assertEqual(self.ner.patience, self.another_ner.patience)
         self.assertEqual(self.ner.random_seed, self.another_ner.random_seed)
