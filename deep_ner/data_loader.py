@@ -75,9 +75,6 @@ class DataLoader(BaseDataLoader):
             for _ in range(self.batch_size - batch_counter):
                 index = random.choice(self.index_arr)
 
-                # x, y = self.dataset.__getitem__(index)
-                # X_batch.append(x)
-                # y_batch.append(y)
                 if self.dataset.mode == 'train':
                     x, y = self.dataset.__getitem__(index)
                     X_batch.append(x)

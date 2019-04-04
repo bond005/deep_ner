@@ -30,7 +30,6 @@ class NER_dataset(BaseDataset):
     PATH_TO_BERT = '/mnt/data/jupyter/zp_deep_ner/pretrained/rubert_cased_L-12_H-768_A-12_v1'
 
     def __init__(self, texts, annotations=None, max_seq_length=512, transforms=None, bert_hub_module_handle: Union[str, None]='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', mode='train', shapes_list=None):
-        # assert len(texts) == len(annotations)
 
         self.texts = texts
         self.annotations = annotations
@@ -61,7 +60,7 @@ class NER_dataset(BaseDataset):
     def __getitem__(self, index):
 
         if self.get_counter == 0:
-            self.recalculate_all()
+            # self.recalculate_all()
             self.get_counter = len(self.texts)
 
         self.get_counter -= 1
@@ -72,18 +71,6 @@ class NER_dataset(BaseDataset):
         else:
             x = [self.X_tokenized[channel_idx][index] for channel_idx in range(len(self.X_tokenized))]
             return x
-
-        # text = self.texts[index]
-        # annotation = self.annotations[index]
-        #
-        # if self.mode is not 'train' and self.transforms is not None:
-        #     text, annotation = self.transforms.apply(text, annotation)
-        #
-        # # TODO make tokenization and other stuff here
-        # X_tokenized, y_tokenized, self.shapes_list_, bounds_of_tokens_for_training = self.tokenize_all(
-        #     X_train_, y_train_)
-
-        # return text, annotation
 
     def recalculate_all(self):
 
