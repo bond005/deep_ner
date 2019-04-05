@@ -982,9 +982,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 (not isinstance(kwargs['validation_fraction'], np.float64)):
             raise ValueError('`validation_fraction` is wrong! Expected `{0}`, got `{1}`.'.format(
                 type(3.5), type(kwargs['validation_fraction'])))
-        if kwargs['validation_fraction'] <= 0.0:
-            raise ValueError('`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, '
-                             'but {0} is not positive.'.format(kwargs['validation_fraction']))
+        if kwargs['validation_fraction'] < 0.0:
+            raise ValueError('`validation_fraction` is wrong! Expected a positive floating-point value greater than '
+                             'or equal to 0.0, but {0} is not positive.'.format(kwargs['validation_fraction']))
         if kwargs['validation_fraction'] >= 1.0:
             raise ValueError('`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, '
                              'but {0} is not less than 1.0.'.format(kwargs['validation_fraction']))

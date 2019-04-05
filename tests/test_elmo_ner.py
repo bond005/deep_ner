@@ -65,7 +65,7 @@ class TestELMoNER(unittest.TestCase):
     def test_check_params_positive(self):
         ELMo_NER.check_params(
             elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3,
-            l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
+            l2_reg=1e-4, validation_fraction=0.0, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
             random_seed=42
         )
         self.assertTrue(True)
@@ -219,8 +219,8 @@ class TestELMoNER(unittest.TestCase):
             )
 
     def test_check_params_negative017(self):
-        true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, but ' \
-                       '{0} is not positive.'.format(-0.1)
+        true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value greater than or ' \
+                       'equal to 0.0, but {0} is not positive.'.format(-0.1)
         with self.assertRaisesRegex(ValueError, true_err_msg):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,

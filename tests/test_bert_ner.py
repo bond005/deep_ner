@@ -66,7 +66,7 @@ class TestBertNer(unittest.TestCase):
     def test_check_params_positive(self):
         BERT_NER.check_params(
             bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', finetune_bert=True,
-            batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
+            batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.0,
             max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=None
         )
         self.assertTrue(True)
@@ -233,8 +233,8 @@ class TestBertNer(unittest.TestCase):
             )
 
     def test_check_params_negative017(self):
-        true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value less than 1.0, but ' \
-                       '{0} is not positive.'.format(-0.1)
+        true_err_msg = '`validation_fraction` is wrong! Expected a positive floating-point value greater than or ' \
+                       'equal to 0.0, but {0} is not positive.'.format(-0.1)
         with self.assertRaisesRegex(ValueError, true_err_msg):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',

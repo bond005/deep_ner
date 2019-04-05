@@ -34,7 +34,7 @@ After installing the **Deep-NER** can be used as Python package in your projects
 
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
-ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1')  # create new named entity recognizer for English language
+ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', validation_fraction=0.0)  # create new named entity recognizer for English language
 ```
 
 If you want to use some special finetuned BERT, located on your disk, then you have to set path to the BERT directory in special variable (a Python class attribute) `BERT_NER.PATH_TO_BERT`. For example:
@@ -42,7 +42,7 @@ If you want to use some special finetuned BERT, located on your disk, then you h
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
 BERT_NER.PATH_TO_BERT = '/path/to/the/unpacked/BERT'
-ner = BERT_NER()  # create new named entity recognizer using this BERT
+ner = BERT_NER(validation_fraction=0.0)  # create new named entity recognizer using this BERT
 ```
 
 **Important note**: name of directory with unpacked files of your BERT model must contain such subphrases as `cased` or `uncased` (for example, `cased_L-12_H-768_A-12`, `rubert_uncased_L-24_H-768_A-24` and the like). Presence of `cased` substring implies that the true case of processed texts is preserved, and occurrence of `uncased` substring is corresponded to processing of texts in lower-case only.
@@ -62,7 +62,7 @@ A neural network architecture of the **Deep-NER** consists of a deep pre-trained
 
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
-ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', lstm_units=256)  # create new BERT-NER with BiLSTM-CRF head instead of simple CRF head
+ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', lstm_units=256, validation_fraction=0.0)  # create new BERT-NER with BiLSTM-CRF head instead of simple CRF head
 ```
 
 
