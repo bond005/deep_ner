@@ -97,7 +97,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_val_tokenized = None
         if self.verbose:
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
-        train_op, accuracy = self.build_model()
+        train_op, log_likelihood = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -118,7 +118,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         tmp_model_name = self.get_temp_model_name()
         if self.verbose:
             if X_val_tokenized is None:
-                elmo_ner_logger.info('Epoch   Train acc.')
+                elmo_ner_logger.info('Epoch   Log-likelihood')
         n_epochs_without_improving = 0
         try:
             best_acc = None
@@ -131,7 +131,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     y_batch = y_train_tokenized[cur_batch[0]:cur_batch[1]]
                     feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                     self.sess_.run(train_op, feed_dict=feed_dict_for_batch)
-                acc_train = accuracy.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
+                acc_train = log_likelihood.eval(feed_dict=feed_dict_for_batch, session=self.sess_)
                 if bounds_of_batches_for_validation is not None:
                     acc_test = 0.0
                     y_pred = []
@@ -141,7 +141,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params = self.sess_.run(
-                            [accuracy, self.logits_, self.transition_params_],
+                            [log_likelihood, self.logits_, self.transition_params_],
                             feed_dict=feed_dict_for_batch
                         )
                         acc_test += acc_test_ * self.batch_size
@@ -153,8 +153,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     acc_test /= float(X_val_tokenized[0].shape[0])
                     if self.verbose:
                         elmo_ner_logger.info('Epoch {0}'.format(epoch))
-                        elmo_ner_logger.info('  Train acc.: {0: 10.8f}'.format(acc_train))
-                        elmo_ner_logger.info('  Val. acc.:  {0: 10.8f}'.format(acc_test))
+                        elmo_ner_logger.info('  Train log-likelihood.: {0: 10.8f}'.format(acc_train))
+                        elmo_ner_logger.info('  Val. log-likelihood:  {0: 10.8f}'.format(acc_test))
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
@@ -202,14 +202,14 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     else:
                         n_epochs_without_improving += 1
                     if self.verbose:
-                        elmo_ner_logger.info('{0:>5}   {1:>10.8f}'.format(epoch, acc_train))
+                        elmo_ner_logger.info('{0:>5}   {1:>14.8f}'.format(epoch, acc_train))
                 if n_epochs_without_improving >= self.patience:
                     if self.verbose:
                         elmo_ner_logger.info('Epoch %05d: early stopping' % (epoch + 1))
                     break
             if best_acc is not None:
                 self.finalize_model()
-                _, accuracy = self.build_model()
+                _, log_likelihood = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose:
                     if bounds_of_batches_for_validation is not None:
@@ -221,7 +221,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                             y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                             feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                             acc_test_, logits, trans_params = self.sess_.run(
-                                [accuracy, self.logits_, self.transition_params_],
+                                [log_likelihood, self.logits_, self.transition_params_],
                                 feed_dict=feed_dict_for_batch
                             )
                             acc_test += acc_test_ * self.batch_size
@@ -241,7 +241,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                             pred_entities_val.append(new_entities)
                         f1_test, _, _, _ = calculate_prediction_quality(y_val_, pred_entities_val, self.classes_list_)
                         elmo_ner_logger.info('Best val. F1 is {0:>8.6f}'.format(f1_test))
-                        elmo_ner_logger.info('Best val. acc. is {0:>10.8f}'.format(acc_test))
+                        elmo_ner_logger.info('Best val. log-likelihood is {0:>10.8f}'.format(acc_test))
         finally:
             for cur_name in self.find_all_model_files(tmp_model_name):
                 os.remove(cur_name)
@@ -620,11 +620,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
             train_op = optimizer.minimize(final_loss)
         with tf.name_scope('eval'):
-            seq_scores = tf.contrib.crf.crf_sequence_score(self.logits_, self.y_ph_, self.sequence_lengths_,
-                                                           self.transition_params_)
-            seq_norm = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_, self.transition_params_)
-            accuracy = tf.reduce_mean(tf.cast(seq_scores, tf.float32) / tf.cast(seq_norm, tf.float32))
-        return train_op, accuracy
+            log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
+                                                                        self.sequence_lengths_, self.transition_params_)
+            seq_norm_eval = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_, self.transition_params_)
+            log_likelihood_eval = tf.reduce_mean(tf.cast(log_likelihood_eval_, tf.float32) /
+                                                 tf.cast(seq_norm_eval, tf.float32))
+        return train_op, log_likelihood_eval
 
     def finalize_model(self):
         if hasattr(self, 'input_tokens_'):
