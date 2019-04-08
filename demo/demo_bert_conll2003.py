@@ -41,7 +41,7 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
         print('Number of samples for validation is {0}.'.format(len(y_val)))
         print('')
         if BERT_NER.PATH_TO_BERT is None:
-            bert_hub_module_handle = 'https://tfhub.dev/google/bert_cased_L-24_H-1024_A-16/1'
+            bert_hub_module_handle = 'https://tfhub.dev/google/bert_cased_L-12_H-768_A-12/1'
         else:
             bert_hub_module_handle = None
         recognizer = BERT_NER(
