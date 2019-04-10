@@ -11,13 +11,13 @@ import numpy as np
 from sklearn.exceptions import NotFittedError
 
 try:
-    from deep_ner.bert_ner_master import BERT_NER
+    from deep_ner.bert_ner import BERT_NER
     from deep_ner.dataset import NER_dataset
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.bert_ner_master import BERT_NER
+    from deep_ner.bert_ner import BERT_NER
     from deep_ner.dataset import NER_dataset
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
