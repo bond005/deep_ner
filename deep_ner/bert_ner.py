@@ -21,6 +21,9 @@ from .dataset import NER_dataset
 from .data_loader import DataLoader
 
 
+tfhub_path = '/mnt/data/jupyter/TFHUB_CACHE_DIR'
+os.environ["TFHUB_CACHE_DIR"] = tfhub_path
+
 bert_ner_logger = logging.getLogger(__name__)
 
 handlers = []
@@ -104,14 +107,20 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
 
-        self.train_dataset = NER_dataset(texts=X_train_, annotations=y_train_, bert_hub_module_handle=self.bert_hub_module_handle)
+        self.train_dataset = NER_dataset(texts=X_train_,
+                                         annotations=y_train_,
+                                         max_seq_length=self.max_seq_length,
+                                         bert_hub_module_handle=self.bert_hub_module_handle)
         self.shapes_list_ = self.train_dataset.shapes_list_
-
         train_loader = DataLoader(dataset=self.train_dataset,
                                   batch_size=self.batch_size,
                                   shuffle=True)
 
-        valid_dataset = NER_dataset(texts=X_val_, annotations=y_val_, shapes_list= self.shapes_list_, bert_hub_module_handle=self.bert_hub_module_handle)
+        valid_dataset = NER_dataset(texts=X_val_,
+                                    annotations=y_val_,
+                                    max_seq_length=self.max_seq_length,
+                                    shapes_list=self.shapes_list_,
+                                    bert_hub_module_handle=self.bert_hub_module_handle)
         valid_loader = DataLoader(dataset=valid_dataset,
                                   batch_size=self.batch_size,
                                   shuffle=False)
@@ -271,6 +280,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         # Create Dataset
         NER_dataset.check_X(X, 'X')
         test_dataset = NER_dataset(texts=X, annotations=None,
+                                   max_seq_length=self.max_seq_length,
                                    shapes_list=self.shapes_list_,
                                    bert_hub_module_handle=self.bert_hub_module_handle,
                                    mode='test')
@@ -281,11 +291,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         y_pred = []
         for X_batch in test_loader:
             feed_dict = self.fill_feed_dict(X_batch)
-            # feed_dict = self.fill_feed_dict(
-            #     [
-            #         X_batch[channel_idx] for channel_idx in range(len(X_batch))
-            #     ]
-            # )
             logits, trans_params, mask = self.sess_.run([self.logits_, self.transition_params_, self.input_mask_],
                                                         feed_dict=feed_dict)
             sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
@@ -358,7 +363,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             result.shapes_list_ = self.shapes_list_
             result.logits_ = self.logits_
             result.transition_params_ = self.transition_params_
-            result.tokenizer_ = self.tokenizer_
+            result.train_dataset = self.train_dataset
             result.input_ids_ = self.input_ids_
             result.input_mask_ = self.input_mask_
             result.segment_ids_ = self.segment_ids_
@@ -413,7 +418,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if is_fitted:
             params['classes_list_'] = copy.copy(self.classes_list_)
             params['shapes_list_'] = copy.copy(self.shapes_list_)
-            params['tokenizer_'] = copy.deepcopy(self.tokenizer_)
+            params['train_dataset'] = copy.deepcopy(self.train_dataset)
             model_file_name = self.get_temp_model_name()
             try:
                 params['model_name_'] = os.path.basename(model_file_name)

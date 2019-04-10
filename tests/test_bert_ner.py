@@ -11,12 +11,14 @@ import numpy as np
 from sklearn.exceptions import NotFittedError
 
 try:
-    from deep_ner.bert_ner import BERT_NER
+    from deep_ner.bert_ner_master import BERT_NER
+    from deep_ner.dataset import NER_dataset
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.bert_ner import BERT_NER
+    from deep_ner.bert_ner_master import BERT_NER
+    from deep_ner.dataset import NER_dataset
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
 
@@ -463,26 +465,26 @@ class TestBertNer(unittest.TestCase):
 
     def test_check_X_positive(self):
         X = ['abc', 'defgh', '4wdffg']
-        BERT_NER.check_X(X, 'X_train')
+        NER_dataset.check_X(X, 'X_train')
         self.assertTrue(True)
 
     def test_check_X_negative01(self):
         X = {'abc', 'defgh', '4wdffg'}
         true_err_msg = re.escape('`X_train` is wrong, because it is not list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_X(X, 'X_train')
+            NER_dataset.check_X(X, 'X_train')
 
     def test_check_X_negative02(self):
         X = np.random.uniform(-1.0, 1.0, (10, 2))
         true_err_msg = re.escape('`X_train` is wrong, because it is not 1-D list!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_X(X, 'X_train')
+            NER_dataset.check_X(X, 'X_train')
 
     def test_check_X_negative03(self):
         X = ['abc', 23, '4wdffg']
         true_err_msg = re.escape('Item 1 of `X_train` is wrong, because it is not string-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_X(X, 'X_train')
+            NER_dataset.check_X(X, 'X_train')
 
     def text_check_Xy_positive(self):
         X = [
@@ -505,7 +507,7 @@ class TestBertNer(unittest.TestCase):
             }
         ]
         true_classes_list = ('LOC', 'ORG', 'PER')
-        self.assertEqual(true_classes_list, BERT_NER.check_Xy(X, 'X_train', y, 'y_train'))
+        self.assertEqual(true_classes_list, NER_dataset.check_Xy(X, 'X_train', y, 'y_train'))
 
     def text_check_Xy_negative01(self):
         X = {
@@ -529,7 +531,7 @@ class TestBertNer(unittest.TestCase):
         ]
         true_err_msg = re.escape('`X_train` is wrong, because it is not list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative02(self):
         X = [
@@ -553,7 +555,7 @@ class TestBertNer(unittest.TestCase):
         }
         true_err_msg = re.escape('`y_train` is wrong, because it is not a list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative03(self):
         X = [
@@ -567,7 +569,7 @@ class TestBertNer(unittest.TestCase):
         y = np.random.uniform(-1.0, 1.0, (10, 2))
         true_err_msg = re.escape('`y_train` is wrong, because it is not 1-D list!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative04(self):
         X = [
@@ -594,7 +596,7 @@ class TestBertNer(unittest.TestCase):
         ]
         true_err_msg = re.escape('Length of `X_train` does not correspond to length of `y_train`! 2 != 3')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative05(self):
         X = [
@@ -614,7 +616,7 @@ class TestBertNer(unittest.TestCase):
         ]
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because it is not a dictionary-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative06(self):
         X = [
@@ -638,7 +640,7 @@ class TestBertNer(unittest.TestCase):
         ]
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because its key `1` is not a string-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative07(self):
         X = [
@@ -663,7 +665,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `O` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative08(self):
         X = [
@@ -688,7 +690,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `123` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative09(self):
         X = [
@@ -713,7 +715,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because its key `loc` incorrectly specifies a named '
                                  'entity!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative10(self):
         X = [
@@ -738,7 +740,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because its value `{0}` is not a list-like '
                                  'object!'.format(y[0]['PER']))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative11(self):
         X = [
@@ -763,7 +765,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because named entity bounds `63` are not specified as '
                                  'list-like object!')
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative12(self):
         X = [
@@ -788,7 +790,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 1 of `y_train` is wrong, because named entity bounds `{0}` are not specified as '
                                  '2-D list!'.format((63, 77, 81)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative13(self):
         X = [
@@ -813,7 +815,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((219, 196)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative14(self):
         X = [
@@ -838,7 +840,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((196, 519)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def text_check_Xy_negative15(self):
         X = [
@@ -863,7 +865,7 @@ class TestBertNer(unittest.TestCase):
         true_err_msg = re.escape('Item 0 of `y_train` is wrong, because named entity bounds `{0}` are '
                                  'incorrect!'.format((-1, 137)))
         with self.assertRaisesRegex(ValueError, true_err_msg):
-            BERT_NER.check_Xy(X, 'X_train', y, 'y_train')
+            NER_dataset.check_Xy(X, 'X_train', y, 'y_train')
 
     def test_detect_token_labels_positive01(self):
         # source_text = 'Барак Обама принимает в Белом доме своего французского коллегу Николя Саркози.'
@@ -883,7 +885,7 @@ class TestBertNer(unittest.TestCase):
             [0, 2, 1, 1, 1, 0, 0, 4, 3, 3, 0, 0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             dtype=np.int32
         )
-        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
+        y_pred = NER_dataset.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -915,7 +917,7 @@ class TestBertNer(unittest.TestCase):
              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             dtype=np.int32
         )
-        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 64)
+        y_pred = NER_dataset.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 64)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -937,7 +939,7 @@ class TestBertNer(unittest.TestCase):
             [0, 2, 1, 1, 1, 4, 3, 3, 3, 3, 4, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             dtype=np.int32
         )
-        y_pred = BERT_NER.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
+        y_pred = NER_dataset.detect_token_labels(tokenized_text, token_bounds, indices_of_named_entities, label_IDs, 32)
         self.assertIsInstance(y_pred, np.ndarray)
         self.assertEqual(y_true.shape, y_pred.shape)
         self.assertEqual(y_true.tolist(), y_pred.tolist())
@@ -953,8 +955,10 @@ class TestBertNer(unittest.TestCase):
             dtype=np.int32
         )
         true_labels_to_classes = {1: 1, 2: 3, 3: 3}
-        indices, labels_to_classes = BERT_NER.calculate_indices_of_named_entities(source_text, classes_list,
+
+        indices, labels_to_classes = NER_dataset.calculate_indices_of_named_entities(source_text, classes_list,
                                                                                   named_entities)
+
         self.assertIsInstance(indices, np.ndarray)
         self.assertIsInstance(labels_to_classes, dict)
         self.assertEqual(true_indices.shape, indices.shape)
@@ -1002,14 +1006,14 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'train_dataset'))
         self.assertTrue(hasattr(res, 'input_ids_'))
         self.assertTrue(hasattr(res, 'input_mask_'))
         self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertSetEqual(set(res.classes_list_), {'LOCATION', 'ORG', 'PERSON'})
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
@@ -1054,14 +1058,14 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'train_dataset'))
         self.assertTrue(hasattr(res, 'input_ids_'))
         self.assertTrue(hasattr(res, 'input_mask_'))
         self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertSetEqual(set(res.classes_list_), {'LOCATION', 'ORG', 'PERSON'})
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
@@ -1105,14 +1109,14 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'train_dataset'))
         self.assertTrue(hasattr(res, 'input_ids_'))
         self.assertTrue(hasattr(res, 'input_mask_'))
         self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertSetEqual(set(res.classes_list_), {'LOCATION', 'ORG', 'PERSON'})
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
@@ -1156,14 +1160,14 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'train_dataset'))
         self.assertTrue(hasattr(res, 'input_ids_'))
         self.assertTrue(hasattr(res, 'input_mask_'))
         self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertSetEqual(set(res.classes_list_), {'LOCATION', 'ORG', 'PERSON'})
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
@@ -1223,14 +1227,14 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'logits_'))
         self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'tokenizer_'))
+        self.assertTrue(hasattr(res, 'train_dataset'))
         self.assertTrue(hasattr(res, 'input_ids_'))
         self.assertTrue(hasattr(res, 'input_mask_'))
         self.assertTrue(hasattr(res, 'segment_ids_'))
         self.assertTrue(hasattr(res, 'additional_features_'))
         self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
-        self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
+        self.assertSetEqual(set(res.classes_list_), {'LOCATION', 'ORG', 'PERSON'})
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
@@ -1373,7 +1377,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'shapes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'logits_'))
         self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
-        self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
+        self.assertTrue(hasattr(self.another_ner, 'train_dataset'))
         self.assertTrue(hasattr(self.another_ner, 'input_ids_'))
         self.assertTrue(hasattr(self.another_ner, 'input_mask_'))
         self.assertTrue(hasattr(self.another_ner, 'segment_ids_'))
@@ -1398,7 +1402,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIs(self.ner.shapes_list_, self.another_ner.shapes_list_)
         self.assertIs(self.ner.logits_, self.another_ner.logits_)
         self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
-        self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
+        self.assertIs(self.ner.train_dataset, self.another_ner.train_dataset)
         self.assertIs(self.ner.input_ids_, self.another_ner.input_ids_)
         self.assertIs(self.ner.input_mask_, self.another_ner.input_mask_)
         self.assertIs(self.ner.segment_ids_, self.another_ner.segment_ids_)
@@ -1426,62 +1430,62 @@ class TestBertNer(unittest.TestCase):
     def test_get_shape_of_string_positive01(self):
         src = '##чники'
         dst = 'a'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive02(self):
         src = 'уже'
         dst = 'a'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive03(self):
         src = 'К'
         dst = 'A'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive04(self):
         src = 'Однако'
         dst = 'Aa'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive05(self):
         src = '66–67'
         dst = 'D-D'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive06(self):
         src = '[UNK]'
         dst = '[UNK]'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_negative(self):
         src = ''
         dst = ''
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_shape_of_string_positive07(self):
         src = '…'
         dst = 'U'
-        self.assertEqual(dst, BERT_NER.get_shape_of_string(src))
+        self.assertEqual(dst, NER_dataset.get_shape_of_string(src))
 
     def test_get_subword_ID_positive01(self):
         src = '##чники'
         dst = 2
-        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+        self.assertEqual(dst, NER_dataset.get_subword_ID(src))
 
     def test_get_subword_ID_positive02(self):
         src = 'Однако'
         dst = 3
-        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+        self.assertEqual(dst, NER_dataset.get_subword_ID(src))
 
     def test_get_subword_ID_positive03(self):
         src = '[CLS]'
         dst = 0
-        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+        self.assertEqual(dst, NER_dataset.get_subword_ID(src))
 
     def test_get_subword_ID_positive04(self):
         src = '[SEP]'
         dst = 1
-        self.assertEqual(dst, BERT_NER.get_subword_ID(src))
+        self.assertEqual(dst, NER_dataset.get_subword_ID(src))
 
 
 if __name__ == '__main__':
