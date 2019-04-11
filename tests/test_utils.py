@@ -1787,7 +1787,7 @@ class TestUtils(unittest.TestCase):
             'SOCCER - JAPAN GET LUCKY WIN, CHINA IN SURPRISE DEFEAT.',
             'Nadim Ladki',
             'AL-AIN, United Arab Emirates 1996-12-06',
-            'Japan coach Shu Kamo said: \'\' The Syrian own goal proved lucky for us.',
+            'Japan coach Shu Kamo said:',
             'Percent change 1.8% 21.8% - 4.4%',
             'FREESTYLE SKIING-WORLD CUP MOGUL RESULTS.',
         ]
@@ -1795,7 +1795,7 @@ class TestUtils(unittest.TestCase):
             {'LOC': [(8, 14)], 'PER': [(30, 35)]},
             {'PER': [(1, 11)]},
             {'LOC': [(0, 6), (8, 28)]},
-            {'LOC': [(0, 5)], 'PER': [(12, 22)], 'MISC': [(34, 40)]},
+            {'LOC': [(0, 5)], 'PER': [(12, 22)]},
             dict(),
             {'MISC': [(10, 26)]}
         ]
@@ -1836,7 +1836,7 @@ class TestUtils(unittest.TestCase):
             "' '' O O O",
             "' POS B-NP O O",
             "The DT I-NP O O",
-            "Syrian JJ I-NP B-MISC B-MISC",
+            "Syrian JJ I-NP B-MISC O",
             "own JJ I-NP O O",
             "goal NN I-NP O O",
             "proved VBD B-VP O O",

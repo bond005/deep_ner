@@ -1004,6 +1004,7 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
     src_fp = None
     dst_fp = None
     is_new_line = True
+    text_is_ended = False
     try:
         src_fp = codecs.open(source_file_name, mode='r', encoding='utf-8', errors='ignore')
         dst_fp = codecs.open(result_file_name, mode='w', encoding='utf-8', errors='ignore')
@@ -1017,14 +1018,13 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
                 if len(parts_of_line) < 2:
                     raise ValueError(err_msg)
                 token_text = parts_of_line[0]
-                if (stopwords is None) or (token_text not in stopwords):
+                if ((stopwords is None) or (token_text not in stopwords)) and (not text_is_ended):
                     found_idx = X[sample_idx][char_idx:].find(token_text)
                     if found_idx < 0:
                         if sample_idx < (len(X) - 1):
                             found_idx = X[sample_idx + 1].find(token_text)
                             if found_idx < 0:
-                                raise ValueError(err_msg + ' Token `{0}` cannot be found in the text `{1}`!'.format(
-                                    token_text, X[sample_idx]))
+                                text_is_ended = True
                             else:
                                 sample_idx += 1
                                 char_idx = found_idx
@@ -1043,6 +1043,7 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
                 if not is_new_line:
                     dst_fp.write('\n')
                 is_new_line = True
+                text_is_ended = False
             cur_line = src_fp.readline()
             line_idx += 1
     finally:
