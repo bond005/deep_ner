@@ -48,7 +48,7 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, max_epochs=max_epochs,
             patience=5, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=1e-5 if bert_will_be_tuned else 1e-3
+            lr=1e-6 if bert_will_be_tuned else 1e-4
         )
         recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         print('')
