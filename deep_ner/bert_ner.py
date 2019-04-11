@@ -614,11 +614,11 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         tf.reset_default_graph()
 
     def save_model(self, file_name: str):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(allow_empty=True)
         saver.save(self.sess_, file_name)
 
     def load_model(self, file_name: str):
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(allow_empty=True)
         saver.restore(self.sess_, file_name)
 
     @staticmethod
