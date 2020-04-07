@@ -1,3 +1,6 @@
+[![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/bond005/impartial_text_cls/blob/master/LICENSE)
+![Python 3.6, 3.7](https://img.shields.io/badge/python-3.6%20%7C%203.7-green.svg)
+
 # deep_ner
 
 **Deep-NER**: named entity recognizer based on deep neural networks and transfer learning.
@@ -53,7 +56,7 @@ For building of NER based on the ELMo model you have to import another module an
 
 ```
 from deep_ner.elmo_ner import ELMo_NER  # import the ELMo-NER module
-ner = ELMo_NER(elmo_hub_module_handle='https://tfhub.dev/google/elmo/2')  # create new named entity recognizer for English language
+ner = ELMo_NER(elmo_hub_module_handle='https://tfhub.dev/google/elmo/3')  # create new named entity recognizer for English language
 ```
 
 Pre-trained ELMo for Russian language as customary TFHub module are granted by the iPavlov project: http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz
@@ -232,6 +235,20 @@ There is special demo script **demo_bert_conll2003.py** in the `demo` subdirecto
 You can found prepared files with the CoNLL-2003 data for training, validation and final testing in the archive http://files.deeppavlov.ai/deeppavlov_data/conll2003_v2.tar.gz.
 
 Internal structure of the results file, generated after completion of the demo script, is described on the web-page [Output Example conlleval](https://www.clips.uantwerpen.be/conll2000/chunking/output.html). Also, example of using of evaluation script named as `conlleval` is adduced on this page. This evaluation script is written with Perl, and it is avaliable for free downloading by the web link https://www.clips.uantwerpen.be/conll2003/ner/bin/conlleval. I recommend to use this script that to evaluate your  results for the CoNLL-2003 dataset, in spite of the fact that the script **demo_bert_conll2003.py** does evaluation of recognition results too (algorithms of F1 calculation in the CoNLL-2003 script and in my demo script are different).
+
+Breaking Changes
+-----
+
+**Breaking changes in version 0.0.2**
+- serialization and deserialization with the `pickle` have been improved, and dependencies have been updated.
+
+**Breaking changes in version 0.0.1**
+- initial (alpha) version of the Deep-NER has been released.
+
+License
+-------
+
+The **Deep-NER** (`deep-ner`) is Apache 2.0 - licensed.
 
 
 Acknowledgment
