@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 
+import nltk
 import numpy as np
 from sklearn.exceptions import NotFittedError
 
@@ -25,6 +26,7 @@ class TestELMoNER(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.ELMO_HUB_MODULE = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-wiki_600k_steps.tar.gz'
+        nltk.download('punkt')
 
     def tearDown(self):
         if hasattr(self, 'ner'):
@@ -1102,7 +1104,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
-        self.temp_file_name = tempfile.NamedTemporaryFile(mode='w').name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(res, fp)
         del res, self.ner
@@ -1132,7 +1135,8 @@ class TestELMoNER(unittest.TestCase):
         old_max_seq_length = self.ner.max_seq_length
         old_validation_fraction = self.ner.validation_fraction
         old_verbose = self.ner.verbose
-        self.temp_file_name = tempfile.NamedTemporaryFile().name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(self.ner, fp)
         del self.ner

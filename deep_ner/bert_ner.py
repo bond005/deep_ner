@@ -6,10 +6,11 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk.tokenize.nist import NISTTokenizer
+from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import tensorflow_hub as tfhub
 from bert.tokenization import FullTokenizer
@@ -17,6 +18,9 @@ from bert.modeling import BertModel, BertConfig, get_assignment_map_from_checkpo
 
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
+
+
+tf.logging.set_verbosity(tf.logging.ERROR)
 
 
 bert_ner_logger = logging.getLogger(__name__)
@@ -45,7 +49,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
-        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
@@ -413,7 +416,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             tokenized_text = []
             bounds_of_tokens_for_text = []
             start_pos = 0
-            for cur_word in self.nltk_tokenizer_.international_tokenize(source_text):
+            for cur_word in wordpunct_tokenize(source_text):
                 found_idx_1 = source_text[start_pos:].find(cur_word)
                 if found_idx_1 < 0:
                     raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
@@ -525,7 +528,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -548,7 +550,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -629,7 +630,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
             self.tokenizer_ = copy.deepcopy(new_params['tokenizer_'])
@@ -645,13 +645,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     def initialize_bert_tokenizer(self) -> FullTokenizer:
         if self.bert_hub_module_handle is not None:
             config = tf.ConfigProto()
             config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+            config.gpu_options.allow_growth = True
             self.sess_ = tf.Session(config=config)
             bert_module = tfhub.Module(self.bert_hub_module_handle, trainable=True)
             tokenization_info = bert_module(signature='tokenization_info', as_dict=True)
@@ -692,6 +692,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
     def build_model(self):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+        config.gpu_options.allow_growth = True
         self.sess_ = tf.Session(config=config)
         input_ids = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
                                    name='input_ids')
@@ -801,20 +802,23 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         tf.reset_default_graph()
 
     def save_model(self, file_name: str):
-        saver = tf.compat.v1.train.Saver()
+        saver = tf.train.Saver()
         saver.save(self.sess_, file_name)
 
     def load_model(self, file_name: str):
         if not hasattr(self, 'sess_'):
-            config = tf.compat.v1.ConfigProto()
+            config = tf.ConfigProto()
             config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
-            self.sess_ = tf.compat.v1.Session(config=config)
+            config.gpu_options.allow_growth = True
+            self.sess_ = tf.Session(config=config)
         saver = tf.train.import_meta_graph(file_name + '.meta', clear_devices=True)
         saver.restore(self.sess_, file_name)
 
     @staticmethod
     def get_temp_model_name() -> str:
-        return tempfile.NamedTemporaryFile(mode='w', suffix='bert_crf.ckpt').name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='bert_crf.ckpt', delete=True) as fp:
+            res = fp.name
+        return res
 
     @staticmethod
     def find_all_model_files(model_name: str) -> List[str]:

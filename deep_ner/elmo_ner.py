@@ -6,15 +6,19 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk.tokenize.nist import NISTTokenizer
+from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import tensorflow_hub as tfhub
 
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
+
+
+tf.logging.set_verbosity(tf.logging.ERROR)
 
 
 elmo_ner_logger = logging.getLogger(__name__)
@@ -37,7 +41,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
-        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
@@ -359,7 +362,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if y is None:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
+                tokenized_text = wordpunct_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -377,7 +380,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
+                tokenized_text = wordpunct_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -444,7 +447,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -465,7 +467,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -545,7 +546,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
             self.update_random_seed()
@@ -560,12 +560,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     def build_model(self):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+        config.gpu_options.allow_growth = True
         self.sess_ = tf.Session(config=config)
         input_tokens = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.string, name='tokens')
         sequence_lengths = tf.placeholder(shape=(self.batch_size,), dtype=tf.int32, name='sequence_len')
@@ -625,15 +625,18 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
 
     def load_model(self, file_name: str):
         if not hasattr(self, 'sess_'):
-            config = tf.compat.v1.ConfigProto()
+            config = tf.ConfigProto()
             config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
-            self.sess_ = tf.compat.v1.Session(config=config)
+            config.gpu_options.allow_growth = True
+            self.sess_ = tf.Session(config=config)
         saver = tf.train.import_meta_graph(file_name + '.meta', clear_devices=True)
         saver.restore(self.sess_, file_name)
 
     @staticmethod
     def get_temp_model_name() -> str:
-        return tempfile.NamedTemporaryFile(mode='w', suffix='elmo_crf.ckpt').name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='elmo_crf.ckpt', delete=True) as fp:
+            res = fp.name
+        return res
 
     @staticmethod
     def find_all_model_files(model_name: str) -> List[str]:
