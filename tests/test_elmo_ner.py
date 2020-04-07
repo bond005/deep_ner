@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 
+import nltk
 import numpy as np
 from sklearn.exceptions import NotFittedError
 
@@ -24,7 +25,8 @@ except:
 class TestELMoNER(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.ELMO_HUB_MODULE = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
+        cls.ELMO_HUB_MODULE = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-wiki_600k_steps.tar.gz'
+        nltk.download('punkt')
 
     def tearDown(self):
         if hasattr(self, 'ner'):
@@ -920,12 +922,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
+        self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
 
@@ -963,12 +960,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(res.random_seed, 42)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1007,12 +998,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1051,12 +1036,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1112,12 +1091,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
-        self.assertTrue(hasattr(res, 'input_tokens_'))
-        self.assertTrue(hasattr(res, 'sequence_lengths_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1131,7 +1104,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
-        self.temp_file_name = tempfile.NamedTemporaryFile(mode='w').name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(res, fp)
         del res, self.ner
@@ -1161,7 +1135,8 @@ class TestELMoNER(unittest.TestCase):
         old_max_seq_length = self.ner.max_seq_length
         old_validation_fraction = self.ner.validation_fraction
         old_verbose = self.ner.verbose
-        self.temp_file_name = tempfile.NamedTemporaryFile().name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(self.ner, fp)
         del self.ner
@@ -1247,12 +1222,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
         self.assertTrue(hasattr(self.another_ner, 'classes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'shapes_list_'))
-        self.assertTrue(hasattr(self.another_ner, 'logits_'))
-        self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
-        self.assertTrue(hasattr(self.another_ner, 'input_tokens_'))
-        self.assertTrue(hasattr(self.another_ner, 'sequence_lengths_'))
-        self.assertTrue(hasattr(self.another_ner, 'additional_features_'))
-        self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
@@ -1268,12 +1237,6 @@ class TestELMoNER(unittest.TestCase):
         self.assertEqual(self.ner.verbose, self.another_ner.verbose)
         self.assertIs(self.ner.classes_list_, self.another_ner.classes_list_)
         self.assertIs(self.ner.shapes_list_, self.another_ner.shapes_list_)
-        self.assertIs(self.ner.logits_, self.another_ner.logits_)
-        self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
-        self.assertIs(self.ner.input_tokens_, self.another_ner.input_tokens_)
-        self.assertIs(self.ner.sequence_lengths_, self.another_ner.sequence_lengths_)
-        self.assertIs(self.ner.additional_features_, self.another_ner.additional_features_)
-        self.assertIs(self.ner.y_ph_, self.another_ner.y_ph_)
         self.assertIs(self.ner.sess_, self.another_ner.sess_)
 
     def test_calculate_bounds_of_named_entities(self):

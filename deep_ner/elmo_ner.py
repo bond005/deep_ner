@@ -6,10 +6,11 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk.tokenize.nist import NISTTokenizer
+from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import tensorflow_hub as tfhub
 
@@ -17,14 +18,17 @@ from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
 
 
+tf.logging.set_verbosity(tf.logging.ERROR)
+
+
 elmo_ner_logger = logging.getLogger(__name__)
 
 
 class ELMo_NER(BaseEstimator, ClassifierMixin):
     def __init__(self, elmo_hub_module_handle: str, finetune_elmo: bool=False,
-                 batch_size: int=32, max_seq_length: int=32, lr: float=1e-3, l2_reg: float=1e-4,
-                 validation_fraction: float=0.1, max_epochs: int=10, patience: int=3, gpu_memory_frac: float=1.0,
-                 verbose: bool=False, random_seed: Union[int, None]=None):
+                 batch_size: int = 32, max_seq_length: int = 32, lr: float = 1e-4, l2_reg: float = 1e-5,
+                 validation_fraction: float = 0.1, max_epochs: int = 10, patience: int = 3,
+                 gpu_memory_frac: float = 1.0, verbose: bool = False, random_seed: Union[int, None] = None):
         self.batch_size = batch_size
         self.lr = lr
         self.l2_reg = l2_reg
@@ -37,7 +41,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
-        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
@@ -58,10 +61,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if hasattr(self, 'shapes_list_'):
             del self.shapes_list_
         self.finalize_model()
-        if self.random_seed is None:
-            self.random_seed = int(round(time.time()))
-        random.seed(self.random_seed)
-        np.random.seed(self.random_seed)
+        self.update_random_seed()
         if validation_data is None:
             if self.validation_fraction > 0.0:
                 train_index, test_index = split_dataset(y, self.validation_fraction, logger=elmo_ner_logger)
@@ -97,7 +97,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_val_tokenized = None
         if self.verbose:
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
-        train_op, log_likelihood = self.build_model()
+        train_op, log_likelihood, logits_, transition_params_ = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -141,7 +141,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params = self.sess_.run(
-                            [log_likelihood, self.logits_, self.transition_params_],
+                            [log_likelihood, logits_, transition_params_],
                             feed_dict=feed_dict_for_batch
                         )
                         acc_test += acc_test_ * self.batch_size
@@ -209,7 +209,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     break
             if best_acc is not None:
                 self.finalize_model()
-                _, log_likelihood = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose:
                     if bounds_of_batches_for_validation is not None:
@@ -221,7 +220,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                             y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                             feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                             acc_test_, logits, trans_params = self.sess_.run(
-                                [log_likelihood, self.logits_, self.transition_params_],
+                                ['eval/Mean:0', 'outputs_of_NER/BiasAdd:0', 'transitions:0'],
                                 feed_dict=feed_dict_for_batch
                             )
                             acc_test += acc_test_ * self.batch_size
@@ -273,7 +272,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     for channel_idx in range(len(X_tokenized))
                 ]
             )
-            logits, trans_params = self.sess_.run([self.logits_, self.transition_params_], feed_dict=feed_dict)
+            logits, trans_params = self.sess_.run(['outputs_of_NER/BiasAdd:0', 'transitions:0'], feed_dict=feed_dict)
             sequence_lengths = X_tokenized[1][cur_batch[0]:cur_batch[1]]
             for logit, sequence_length in zip(logits, sequence_lengths):
                 logit = logit[:int(sequence_length)]
@@ -290,8 +289,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         return recognized_entities_in_texts
 
     def is_fitted(self):
-        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_',  'input_tokens_',
-                               'sequence_lengths_', 'additional_features_', 'y_ph_', 'sess_'])
+        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'sess_'])
 
     def score(self, X, y, sample_weight=None) -> float:
         y_pred = self.predict(X)
@@ -303,9 +301,9 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
     def fill_feed_dict(self, X: List[np.array], y: np.array=None) -> dict:
         assert len(X) == 3
         assert len(X[0]) == self.batch_size
-        feed_dict = {ph: x for ph, x in zip([self.input_tokens_, self.sequence_lengths_, self.additional_features_], X)}
+        feed_dict = {ph: x for ph, x in zip(['tokens:0', 'sequence_len:0', 'additional_features:0'], X)}
         if y is not None:
-            feed_dict[self.y_ph_] = y
+            feed_dict['y_ph:0'] = y
         return feed_dict
 
     def extend_Xy(self, X: List[np.array], y: np.array=None,
@@ -364,7 +362,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if y is None:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
+                tokenized_text = wordpunct_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -382,7 +380,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = self.nltk_tokenizer_.international_tokenize(source_text)
+                tokenized_text = wordpunct_tokenize(source_text)
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -449,7 +447,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -458,12 +455,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if is_fitted:
             result.classes_list_ = self.classes_list_
             result.shapes_list_ = self.shapes_list_
-            result.logits_ = self.logits_
-            result.transition_params_ = self.transition_params_
-            result.input_tokens_ = self.input_tokens_
-            result.sequence_lengths_ = self.sequence_lengths_
-            result.additional_features_ = self.additional_features_
-            result.y_ph_ = self.y_ph_
             result.sess_ = self.sess_
         return result
 
@@ -476,7 +467,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
             gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -485,12 +475,6 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if is_fitted:
             result.classes_list_ = self.classes_list_
             result.shapes_list_ = self.shapes_list_
-            result.logits_ = self.logits_
-            result.transition_params_ = self.transition_params_
-            result.input_tokens_ = self.input_tokens_
-            result.sequence_lengths_ = self.sequence_lengths_
-            result.additional_features_ = self.additional_features_
-            result.y_ph_ = self.y_ph_
             result.sess_ = self.sess_
         return result
 
@@ -499,6 +483,13 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
 
     def __setstate__(self, state: dict):
         self.load_all(state)
+
+    def update_random_seed(self):
+        if self.random_seed is None:
+            self.random_seed = int(round(time.time()))
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
+        tf.compat.v1.random.set_random_seed(self.random_seed)
 
     def dump_all(self):
         try:
@@ -555,18 +546,13 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
-            if self.random_seed is None:
-                self.random_seed = int(round(time.time()))
-            random.seed(self.random_seed)
-            np.random.seed(self.random_seed)
+            self.update_random_seed()
             try:
                 for idx in range(len(model_files)):
                     with open(tmp_file_names[idx], 'wb') as fp:
                         fp.write(new_params['model.' + model_files[idx]])
-                self.build_model()
                 self.load_model(os.path.join(tmp_dir_name, new_params['model_name_']))
             finally:
                 for cur in tmp_file_names:
@@ -574,20 +560,19 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     def build_model(self):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+        config.gpu_options.allow_growth = True
         self.sess_ = tf.Session(config=config)
-        self.input_tokens_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.string,
-                                            name='tokens')
-        self.sequence_lengths_ = tf.placeholder(shape=(self.batch_size,), dtype=tf.int32, name='sequence_len')
-        self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
+        input_tokens = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.string, name='tokens')
+        sequence_lengths = tf.placeholder(shape=(self.batch_size,), dtype=tf.int32, name='sequence_len')
+        y_ph = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
         elmo_inputs = dict(
-            tokens=self.input_tokens_,
-            sequence_len=self.sequence_lengths_
+            tokens=input_tokens,
+            sequence_len=sequence_lengths
         )
         elmo_module = tfhub.Module(self.elmo_hub_module_handle, trainable=self.finetune_elmo)
         sequence_output = elmo_module(inputs=elmo_inputs, signature='tokens', as_dict=True)['elmo']
@@ -595,23 +580,22 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if self.verbose:
             elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
         n_tags = len(self.classes_list_) * 2 + 1
-        self.additional_features_ = tf.placeholder(
+        additional_features = tf.placeholder(
             shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
             name='additional_features'
         )
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         if self.finetune_elmo:
-            self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
-                                           n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
+            logits = tf.layers.dense(tf.concat([sequence_output, additional_features], axis=-1),
+                                     n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                     kernel_initializer=he_init, name='outputs_of_NER')
         else:
             sequence_output_stop = tf.stop_gradient(sequence_output)
-            self.logits_ = tf.layers.dense(
-                tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
+            logits = tf.layers.dense(
+                tf.concat([sequence_output_stop, additional_features], axis=-1),
                 n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
                 kernel_initializer=he_init, name='outputs_of_NER')
-        log_likelihood, self.transition_params_ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
-                                                                                    self.sequence_lengths_)
+        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths)
         loss_tensor = -log_likelihood
         base_loss = tf.reduce_mean(loss_tensor)
         regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
@@ -620,24 +604,14 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
             train_op = optimizer.minimize(final_loss)
         with tf.name_scope('eval'):
-            log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
-                                                                        self.sequence_lengths_, self.transition_params_)
-            seq_norm_eval = tf.contrib.crf.crf_log_norm(self.logits_, self.sequence_lengths_, self.transition_params_)
+            log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood(logits, y_ph,
+                                                                        sequence_lengths, transition_params)
+            seq_norm_eval = tf.contrib.crf.crf_log_norm(logits, sequence_lengths, transition_params)
             log_likelihood_eval = tf.reduce_mean(tf.cast(log_likelihood_eval_, tf.float32) /
                                                  tf.cast(seq_norm_eval, tf.float32))
-        return train_op, log_likelihood_eval
+        return train_op, log_likelihood_eval, logits, transition_params
 
     def finalize_model(self):
-        if hasattr(self, 'input_tokens_'):
-            del self.input_tokens_
-        if hasattr(self, 'sequence_lengths_'):
-            del self.sequence_lengths_
-        if hasattr(self, 'y_ph_'):
-            del self.y_ph_
-        if hasattr(self, 'logits_'):
-            del self.logits_
-        if hasattr(self, 'transition_params_'):
-            del self.transition_params_
         if hasattr(self, 'sess_'):
             for k in list(self.sess_.graph.get_all_collection_keys()):
                 self.sess_.graph.clear_collection(k)
@@ -650,12 +624,19 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         saver.save(self.sess_, file_name)
 
     def load_model(self, file_name: str):
-        saver = tf.train.Saver()
+        if not hasattr(self, 'sess_'):
+            config = tf.ConfigProto()
+            config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+            config.gpu_options.allow_growth = True
+            self.sess_ = tf.Session(config=config)
+        saver = tf.train.import_meta_graph(file_name + '.meta', clear_devices=True)
         saver.restore(self.sess_, file_name)
 
     @staticmethod
     def get_temp_model_name() -> str:
-        return tempfile.NamedTemporaryFile(mode='w', suffix='elmo_crf.ckpt').name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='elmo_crf.ckpt', delete=True) as fp:
+            res = fp.name
+        return res
 
     @staticmethod
     def find_all_model_files(model_name: str) -> List[str]:

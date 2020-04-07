@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 
+import nltk
 import numpy as np
 from sklearn.exceptions import NotFittedError
 
@@ -22,6 +23,10 @@ except:
 
 
 class TestBertNer(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        nltk.download('punkt')
+
     def tearDown(self):
         if hasattr(self, 'ner'):
             del self.ner
@@ -1000,14 +1005,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_ids_'))
-        self.assertTrue(hasattr(res, 'input_mask_'))
-        self.assertTrue(hasattr(res, 'segment_ids_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1052,14 +1050,7 @@ class TestBertNer(unittest.TestCase):
         self.assertEqual(res.random_seed, 42)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_ids_'))
-        self.assertTrue(hasattr(res, 'input_mask_'))
-        self.assertTrue(hasattr(res, 'segment_ids_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1103,14 +1094,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_ids_'))
-        self.assertTrue(hasattr(res, 'input_mask_'))
-        self.assertTrue(hasattr(res, 'segment_ids_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1154,14 +1138,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_ids_'))
-        self.assertTrue(hasattr(res, 'input_mask_'))
-        self.assertTrue(hasattr(res, 'segment_ids_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1221,14 +1198,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.verbose, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
-        self.assertTrue(hasattr(res, 'logits_'))
-        self.assertTrue(hasattr(res, 'transition_params_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
-        self.assertTrue(hasattr(res, 'input_ids_'))
-        self.assertTrue(hasattr(res, 'input_mask_'))
-        self.assertTrue(hasattr(res, 'segment_ids_'))
-        self.assertTrue(hasattr(res, 'additional_features_'))
-        self.assertTrue(hasattr(res, 'y_ph_'))
         self.assertTrue(hasattr(res, 'sess_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
@@ -1243,7 +1213,8 @@ class TestBertNer(unittest.TestCase):
         self.assertGreater(f1, 0.0)
         self.assertGreater(precision, 0.0)
         self.assertGreater(recall, 0.0)
-        self.temp_file_name = tempfile.NamedTemporaryFile(mode='w').name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(res, fp)
         del res, self.ner
@@ -1275,7 +1246,8 @@ class TestBertNer(unittest.TestCase):
         old_max_seq_length = self.ner.max_seq_length
         old_validation_fraction = self.ner.validation_fraction
         old_verbose = self.ner.verbose
-        self.temp_file_name = tempfile.NamedTemporaryFile().name
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
+            self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
             pickle.dump(self.ner, fp)
         del self.ner
@@ -1371,14 +1343,7 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
         self.assertTrue(hasattr(self.another_ner, 'classes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'shapes_list_'))
-        self.assertTrue(hasattr(self.another_ner, 'logits_'))
-        self.assertTrue(hasattr(self.another_ner, 'transition_params_'))
         self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
-        self.assertTrue(hasattr(self.another_ner, 'input_ids_'))
-        self.assertTrue(hasattr(self.another_ner, 'input_mask_'))
-        self.assertTrue(hasattr(self.another_ner, 'segment_ids_'))
-        self.assertTrue(hasattr(self.another_ner, 'additional_features_'))
-        self.assertTrue(hasattr(self.another_ner, 'y_ph_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
         self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
@@ -1396,14 +1361,7 @@ class TestBertNer(unittest.TestCase):
         self.assertEqual(self.ner.verbose, self.another_ner.verbose)
         self.assertIs(self.ner.classes_list_, self.another_ner.classes_list_)
         self.assertIs(self.ner.shapes_list_, self.another_ner.shapes_list_)
-        self.assertIs(self.ner.logits_, self.another_ner.logits_)
-        self.assertIs(self.ner.transition_params_, self.another_ner.transition_params_)
         self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
-        self.assertIs(self.ner.input_ids_, self.another_ner.input_ids_)
-        self.assertIs(self.ner.input_mask_, self.another_ner.input_mask_)
-        self.assertIs(self.ner.segment_ids_, self.another_ner.segment_ids_)
-        self.assertIs(self.ner.additional_features_, self.another_ner.additional_features_)
-        self.assertIs(self.ner.y_ph_, self.another_ner.y_ph_)
         self.assertIs(self.ner.sess_, self.another_ner.sess_)
 
     def test_calculate_bounds_of_named_entities(self):

@@ -6,10 +6,11 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk.tokenize.nist import NISTTokenizer
+from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import tensorflow_hub as tfhub
 from bert.tokenization import FullTokenizer
@@ -19,18 +20,21 @@ from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
 
 
+tf.logging.set_verbosity(tf.logging.ERROR)
+
+
 bert_ner_logger = logging.getLogger(__name__)
 
 
 class BERT_NER(BaseEstimator, ClassifierMixin):
     PATH_TO_BERT = None
 
-    def __init__(self, finetune_bert: bool=False,
-                 bert_hub_module_handle: Union[str, None]='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-                 batch_size: int=32, max_seq_length: int=512, lr: float=1e-3, lstm_units: Union[int, None]=256,
-                 l2_reg: float=1e-4, clip_norm: Union[float, None]=5.0, validation_fraction: float=0.1,
-                 max_epochs: int=10, patience: int=3, gpu_memory_frac: float=1.0, verbose: bool=False,
-                 random_seed: Union[int, None]=None):
+    def __init__(self, finetune_bert: bool = False,
+                 bert_hub_module_handle: str = 'https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+                 batch_size: int=32, max_seq_length: int = 512, lr: float = 1e-4, lstm_units: Union[int, None] = 256,
+                 l2_reg: float = 1e-5, clip_norm: Union[float, None] = 5.0, validation_fraction: float = 0.1,
+                 max_epochs: int = 10, patience: int = 3, gpu_memory_frac: float = 1.0, verbose: bool = False,
+                 random_seed: Union[int, None] = None):
         self.batch_size = batch_size
         self.lr = lr
         self.l2_reg = l2_reg
@@ -45,7 +49,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         self.max_seq_length = max_seq_length
         self.validation_fraction = validation_fraction
         self.verbose = verbose
-        self.nltk_tokenizer_ = NISTTokenizer()
 
     def __del__(self):
         if hasattr(self, 'classes_list_'):
@@ -71,10 +74,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if hasattr(self, 'tokenizer_'):
             del self.tokenizer_
         self.finalize_model()
-        if self.random_seed is None:
-            self.random_seed = int(round(time.time()))
-        random.seed(self.random_seed)
-        np.random.seed(self.random_seed)
+        self.update_random_seed()
         if validation_data is None:
             if self.validation_fraction > 0.0:
                 train_index, test_index = split_dataset(y, self.validation_fraction, logger=bert_ner_logger)
@@ -127,7 +127,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             X_val_tokenized = None
             y_val_tokenized = None
             bounds_of_tokens_for_validation = None
-        train_op, log_likelihood = self.build_model()
+        train_op, log_likelihood, logits_, transition_params_, input_mask_ = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -171,7 +171,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params, mask = self.sess_.run(
-                            [log_likelihood, self.logits_, self.transition_params_, self.input_mask_],
+                            [log_likelihood, logits_, transition_params_, input_mask_],
                             feed_dict=feed_dict_for_batch
                         )
                         acc_test += self.batch_size * acc_test_
@@ -240,7 +240,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     break
             if best_acc is not None:
                 self.finalize_model()
-                _, log_likelihood = self.build_model()
                 self.load_model(tmp_model_name)
                 if self.verbose and (bounds_of_batches_for_validation is not None):
                     acc_test = 0.0
@@ -251,7 +250,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         y_batch = y_val_tokenized[cur_batch[0]:cur_batch[1]]
                         feed_dict_for_batch = self.fill_feed_dict(X_batch, y_batch)
                         acc_test_, logits, trans_params, mask = self.sess_.run(
-                            [log_likelihood, self.logits_, self.transition_params_, self.input_mask_],
+                            ['eval/Mean:0', 'outputs_of_NER/BiasAdd:0', 'transitions:0', 'input_mask:0'],
                             feed_dict=feed_dict_for_batch
                         )
                         acc_test += self.batch_size * acc_test_
@@ -306,8 +305,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     for channel_idx in range(len(X_tokenized))
                 ]
             )
-            logits, trans_params, mask = self.sess_.run([self.logits_, self.transition_params_, self.input_mask_],
-                                                        feed_dict=feed_dict)
+            logits, trans_params, mask = self.sess_.run(
+                ['outputs_of_NER/BiasAdd:0', 'transitions:0', 'input_mask:0'],
+                feed_dict=feed_dict
+            )
             sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
             for logit, sequence_length in zip(logits, sequence_lengths):
                 logit = logit[:int(sequence_length)]
@@ -323,8 +324,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         return recognized_entities_in_texts
 
     def is_fitted(self):
-        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'logits_', 'transition_params_', 'tokenizer_',
-                               'input_ids_', 'input_mask_', 'segment_ids_', 'additional_features_', 'y_ph_', 'sess_'])
+        check_is_fitted(self, ['classes_list_', 'shapes_list_', 'tokenizer_', 'sess_'])
 
     def score(self, X, y, sample_weight=None) -> float:
         y_pred = self.predict(X)
@@ -337,10 +337,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         assert len(X) == 4
         assert len(X[0]) == self.batch_size
         feed_dict = {
-            ph: x for ph, x in zip([self.input_ids_, self.input_mask_, self.segment_ids_, self.additional_features_], X)
+            ph: x for ph, x in zip(['input_ids:0', 'input_mask:0', 'segment_ids:0', 'additional_features:0'], X)
         }
         if y is not None:
-            feed_dict[self.y_ph_] = y
+            feed_dict['y_ph:0'] = y
         return feed_dict
 
     def extend_Xy(self, X: List[np.array], bounds_of_tokens: np.ndarray, y: np.array=None, shuffle: bool=False) -> \
@@ -416,7 +416,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             tokenized_text = []
             bounds_of_tokens_for_text = []
             start_pos = 0
-            for cur_word in self.nltk_tokenizer_.international_tokenize(source_text):
+            for cur_word in wordpunct_tokenize(source_text):
                 found_idx_1 = source_text[start_pos:].find(cur_word)
                 if found_idx_1 < 0:
                     raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
@@ -528,7 +528,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -537,14 +536,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if is_fitted:
             result.classes_list_ = self.classes_list_
             result.shapes_list_ = self.shapes_list_
-            result.logits_ = self.logits_
-            result.transition_params_ = self.transition_params_
             result.tokenizer_ = self.tokenizer_
-            result.input_ids_ = self.input_ids_
-            result.input_mask_ = self.input_mask_
-            result.segment_ids_ = self.segment_ids_
-            result.additional_features_ = self.additional_features_
-            result.y_ph_ = self.y_ph_
             result.sess_ = self.sess_
         return result
 
@@ -558,7 +550,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
             verbose=self.verbose, random_seed=self.random_seed
         )
-        result.nltk_tokenizer_ = NISTTokenizer()
         try:
             self.is_fitted()
             is_fitted = True
@@ -567,14 +558,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if is_fitted:
             result.classes_list_ = self.classes_list_
             result.shapes_list_ = self.shapes_list_
-            result.logits_ = self.logits_
-            result.transition_params_ = self.transition_params_
             result.tokenizer_ = self.tokenizer_
-            result.input_ids_ = self.input_ids_
-            result.input_mask_ = self.input_mask_
-            result.segment_ids_ = self.segment_ids_
-            result.additional_features_ = self.additional_features_
-            result.y_ph_ = self.y_ph_
             result.sess_ = self.sess_
         return result
 
@@ -583,6 +567,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
 
     def __setstate__(self, state: dict):
         self.load_all(state)
+
+    def update_random_seed(self):
+        if self.random_seed is None:
+            self.random_seed = int(round(time.time()))
+        random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
+        tf.compat.v1.random.set_random_seed(self.random_seed)
 
     def dump_all(self):
         try:
@@ -639,19 +630,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 if os.path.isfile(cur):
                     raise ValueError('File `{0}` exists, and so it cannot be used for data transmission!'.format(cur))
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
             self.classes_list_ = copy.copy(new_params['classes_list_'])
             self.shapes_list_ = copy.copy(new_params['shapes_list_'])
             self.tokenizer_ = copy.deepcopy(new_params['tokenizer_'])
-            if self.random_seed is None:
-                self.random_seed = int(round(time.time()))
-            random.seed(self.random_seed)
-            np.random.seed(self.random_seed)
+            self.update_random_seed()
             try:
                 for idx in range(len(model_files)):
                     with open(tmp_file_names[idx], 'wb') as fp:
                         fp.write(new_params['model.' + model_files[idx]])
-                self.build_model()
                 self.load_model(os.path.join(tmp_dir_name, new_params['model_name_']))
             finally:
                 for cur in tmp_file_names:
@@ -659,13 +645,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         os.remove(cur)
         else:
             self.set_params(**new_params)
-            self.nltk_tokenizer_ = NISTTokenizer()
         return self
 
     def initialize_bert_tokenizer(self) -> FullTokenizer:
         if self.bert_hub_module_handle is not None:
             config = tf.ConfigProto()
             config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+            config.gpu_options.allow_growth = True
             self.sess_ = tf.Session(config=config)
             bert_module = tfhub.Module(self.bert_hub_module_handle, trainable=True)
             tokenization_info = bert_module(signature='tokenization_info', as_dict=True)
@@ -706,18 +692,19 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
     def build_model(self):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+        config.gpu_options.allow_growth = True
         self.sess_ = tf.Session(config=config)
-        self.input_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                         name='input_ids')
-        self.input_mask_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                          name='input_mask')
-        self.segment_ids_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
-                                           name='segment_ids')
-        self.y_ph_ = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
+        input_ids = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
+                                   name='input_ids')
+        input_mask = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
+                                    name='input_mask')
+        segment_ids = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32,
+                                     name='segment_ids')
+        y_ph = tf.placeholder(shape=(self.batch_size, self.max_seq_length), dtype=tf.int32, name='y_ph')
         bert_inputs = dict(
-            input_ids=self.input_ids_,
-            input_mask=self.input_mask_,
-            segment_ids=self.segment_ids_
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids
         )
         if self.bert_hub_module_handle is not None:
             bert_module = tfhub.Module(self.bert_hub_module_handle, trainable=True)
@@ -733,8 +720,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 raise ValueError('`path_to_bert` is wrong! There are no BERT files into the directory `{0}`.'.format(
                     self.PATH_TO_BERT))
             bert_config = BertConfig.from_json_file(os.path.join(path_to_bert, 'bert_config.json'))
-            bert_model = BertModel(config=bert_config, is_training=self.finetune_bert, input_ids=self.input_ids_,
-                                   input_mask=self.input_mask_, token_type_ids=self.segment_ids_,
+            bert_model = BertModel(config=bert_config, is_training=self.finetune_bert, input_ids=input_ids,
+                                   input_mask=input_mask, token_type_ids=segment_ids,
                                    use_one_hot_embeddings=False)
             sequence_output = bert_model.sequence_output
             tvars = tf.trainable_variables()
@@ -743,7 +730,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive.')
-        self.additional_features_ = tf.placeholder(
+        additional_features = tf.placeholder(
             shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
             name='additional_features'
         )
@@ -752,40 +739,38 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         n_tags = len(self.classes_list_) * 2 + 1
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         glorot_init = tf.keras.initializers.glorot_uniform(seed=self.random_seed)
-        sequence_lengths = tf.reduce_sum(self.input_mask_, axis=1)
+        sequence_lengths = tf.reduce_sum(input_mask, axis=1)
         if self.lstm_units is None:
             if self.finetune_bert:
-                self.logits_ = tf.layers.dense(tf.concat([sequence_output, self.additional_features_], axis=-1),
-                                               n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                               kernel_initializer=he_init, name='outputs_of_NER')
+                logits = tf.layers.dense(tf.concat([sequence_output, additional_features], axis=-1),
+                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                         kernel_initializer=he_init, name='outputs_of_NER')
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
-                self.logits_ = tf.layers.dense(tf.concat([sequence_output_stop, self.additional_features_], axis=-1),
-                                               n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                               kernel_initializer=he_init, name='outputs_of_NER')
+                logits = tf.layers.dense(tf.concat([sequence_output_stop, additional_features], axis=-1),
+                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                         kernel_initializer=he_init, name='outputs_of_NER')
         else:
             if self.finetune_bert:
                 with tf.name_scope('bilstm_layer'):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
+                                                        recurrent_dropout=0.0, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(tf.concat([sequence_output, self.additional_features_], axis=-1))
+                    rnn_output = rnn_layer(tf.concat([sequence_output, additional_features], axis=-1))
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
                 with tf.name_scope('bilstm_layer'):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.05, kernel_initializer=glorot_init)
+                                                        recurrent_dropout=0.0, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(tf.concat([sequence_output_stop, self.additional_features_], axis=-1))
-            self.logits_ = tf.layers.dense(rnn_output, n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                           kernel_initializer=he_init, name='outputs_of_NER')
-        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(self.logits_, self.y_ph_,
-                                                                              sequence_lengths)
+                    rnn_output = rnn_layer(tf.concat([sequence_output_stop, additional_features], axis=-1))
+            logits = tf.layers.dense(rnn_output, n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                     kernel_initializer=he_init, name='outputs_of_NER')
+        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths)
         loss_tensor = -log_likelihood
         base_loss = tf.reduce_mean(loss_tensor)
         regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
         final_loss = base_loss + regularization_loss
-        self.transition_params_ = transition_params
         with tf.name_scope('train'):
             optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
             if (self.lstm_units is None) or (self.clip_norm is None):
@@ -801,28 +786,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 ]
                 train_op = optimizer.apply_gradients(capped_gvs)
         with tf.name_scope('eval'):
-            log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood( self.logits_, self.y_ph_, sequence_lengths,
-                                                                         self.transition_params_)
-            seq_norm_eval = tf.contrib.crf.crf_log_norm(self.logits_, sequence_lengths, self.transition_params_)
+            log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths,
+                                                                        transition_params)
+            seq_norm_eval = tf.contrib.crf.crf_log_norm(logits, sequence_lengths, transition_params)
             log_likelihood_eval = tf.reduce_mean(tf.cast(log_likelihood_eval_, tf.float32) /
                                                  tf.cast(seq_norm_eval, tf.float32))
-        return train_op, log_likelihood_eval
+        return train_op, log_likelihood_eval, logits, transition_params, input_mask
 
     def finalize_model(self):
-        if hasattr(self, 'input_ids_'):
-            del self.input_ids_
-        if hasattr(self, 'input_mask_'):
-            del self.input_mask_
-        if hasattr(self, 'segment_ids_'):
-            del self.segment_ids_
-        if hasattr(self, 'additional_features_'):
-            del self.additional_features_
-        if hasattr(self, 'y_ph_'):
-            del self.y_ph_
-        if hasattr(self, 'logits_'):
-            del self.logits_
-        if hasattr(self, 'transition_params_'):
-            del self.transition_params_
         if hasattr(self, 'sess_'):
             for k in list(self.sess_.graph.get_all_collection_keys()):
                 self.sess_.graph.clear_collection(k)
@@ -835,12 +806,19 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         saver.save(self.sess_, file_name)
 
     def load_model(self, file_name: str):
-        saver = tf.train.Saver()
+        if not hasattr(self, 'sess_'):
+            config = tf.ConfigProto()
+            config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
+            config.gpu_options.allow_growth = True
+            self.sess_ = tf.Session(config=config)
+        saver = tf.train.import_meta_graph(file_name + '.meta', clear_devices=True)
         saver.restore(self.sess_, file_name)
 
     @staticmethod
     def get_temp_model_name() -> str:
-        return tempfile.NamedTemporaryFile(mode='w', suffix='bert_crf.ckpt').name
+        with tempfile.NamedTemporaryFile(mode='w', suffix='bert_crf.ckpt', delete=True) as fp:
+            res = fp.name
+        return res
 
     @staticmethod
     def find_all_model_files(model_name: str) -> List[str]:
