@@ -50,7 +50,7 @@ ner = BERT_NER(validation_fraction=0.0)  # create new named entity recognizer us
 
 **Important note**: name of directory with unpacked files of your BERT model must contain such subphrases as `cased` or `uncased` (for example, `cased_L-12_H-768_A-12`, `rubert_uncased_L-24_H-768_A-24` and the like). Presence of `cased` substring implies that the true case of processed texts is preserved, and occurrence of `uncased` substring is corresponded to processing of texts in lower-case only.
 
-You can find archives with pre-trained BERT, appropriate for you, on websites of various scientific projects (so, good BERT model for Russian language is available as part of the DeepPavlov project http://files.deeppavlov.ai/deeppavlov_data/bert/rubert_cased_L-12_H-768_A-12_v1.tar.gz).
+You can find archives with pre-trained BERT, appropriate for you, on websites of various scientific projects (so, good BERT model for Russian language is available as part of the DeepPavlov project http://files.deeppavlov.ai/deeppavlov_data/bert/rubert_cased_L-12_H-768_A-12_v2.tar.gz).
 
 For building of NER based on the ELMo model you have to import another module and create object of the ELMo_NER class, like this:
 
@@ -238,6 +238,9 @@ Internal structure of the results file, generated after completion of the demo s
 
 Breaking Changes
 -----
+
+**Breaking changes in version 0.0.3**
+- a little misprint in the setup.py has been fixed.
 
 **Breaking changes in version 0.0.2**
 - serialization and deserialization with the `pickle` have been improved, and dependencies have been updated.
