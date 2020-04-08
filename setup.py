@@ -45,7 +45,7 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],
     keywords=['elmo', 'bert', 'ner', 'crf', 'nlp', 'tensorflow', 'scikit-learn'],
-    install_requires=['nltk==3.4.5', 'numpy==1.18.1', 'scikit-learn==0.22.1', 'scipy==1.4.1' 'tensorboard==2.1.0',
+    install_requires=['nltk==3.4.5', 'numpy==1.18.1', 'scikit-learn==0.22.1', 'scipy==1.4.1', 'tensorboard==2.1.0',
                       'tensorflow==1.15.0', 'tensorflow-hub==0.8.0', 'bert-tensorflow==1.0.1'],
     test_suite='tests'
 )
