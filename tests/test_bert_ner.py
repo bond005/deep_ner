@@ -7,26 +7,24 @@ import sys
 import tempfile
 import unittest
 
-import nltk
 import numpy as np
 from sklearn.exceptions import NotFittedError
+from spacy_udpipe.language import UDPipeLanguage
 
 try:
     from deep_ner.bert_ner import BERT_NER
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
+    from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.bert_ner import BERT_NER
     from deep_ner.utils import load_dataset_from_json
     from deep_ner.quality import calculate_prediction_quality
+    from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 
 
 class TestBertNer(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        nltk.download('punkt')
-
     def tearDown(self):
         if hasattr(self, 'ner'):
             del self.ner
@@ -37,8 +35,10 @@ class TestBertNer(unittest.TestCase):
                 os.remove(self.temp_file_name)
 
     def test_creation(self):
-        self.ner = BERT_NER()
+        self.ner = BERT_NER(udpipe_lang='en')
         self.assertIsInstance(self.ner, BERT_NER)
+        self.assertTrue(hasattr(self.ner, 'udpipe_lang'))
+        self.assertTrue(hasattr(self.ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.ner, 'batch_size'))
         self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
@@ -59,6 +59,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(self.ner.l2_reg, float)
         self.assertIsInstance(self.ner.clip_norm, float)
         self.assertIsInstance(self.ner.bert_hub_module_handle, str)
+        self.assertIsInstance(self.ner.udpipe_lang, str)
         self.assertIsInstance(self.ner.finetune_bert, bool)
         self.assertIsInstance(self.ner.max_epochs, int)
         self.assertIsInstance(self.ner.patience, int)
@@ -67,12 +68,14 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(self.ner.max_seq_length, int)
         self.assertIsInstance(self.ner.validation_fraction, float)
         self.assertIsInstance(self.ner.verbose, bool)
+        self.assertIsInstance(self.ner.use_additional_features, bool)
 
     def test_check_params_positive(self):
         BERT_NER.check_params(
             bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', finetune_bert=True,
             batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.0,
-            max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=None
+            max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=None,
+            use_additional_features=True, udpipe_lang='en'
         )
         self.assertTrue(True)
 
@@ -82,7 +85,7 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative002(self):
@@ -92,7 +95,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle=1, finetune_bert=True,
                 batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative003(self):
@@ -101,7 +105,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative004(self):
@@ -112,7 +117,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size='32', max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative005(self):
@@ -122,7 +127,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=-3, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative006(self):
@@ -131,7 +136,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative007(self):
@@ -142,7 +148,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs='10', patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42, lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative008(self):
@@ -152,7 +158,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative009(self):
@@ -162,7 +168,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative010(self):
@@ -173,7 +179,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42, lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative011(self):
@@ -183,7 +189,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative012(self):
@@ -192,7 +198,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, lr=1e-3, l2_reg=1e-4, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative013(self):
@@ -203,7 +210,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length='512', lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative014(self):
@@ -214,7 +221,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=-3, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative015(self):
@@ -223,7 +230,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative016(self):
@@ -234,7 +242,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42, lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative017(self):
@@ -245,7 +253,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative018(self):
@@ -256,7 +264,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative019(self):
@@ -265,7 +273,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42, lstm_units=128
+                validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative020(self):
@@ -276,7 +285,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0', verbose=False,
-                random_seed=42, lstm_units=128
+                random_seed=42, lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative021(self):
@@ -287,7 +296,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative022(self):
@@ -298,7 +307,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative023(self):
@@ -308,7 +317,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative024(self):
@@ -319,7 +328,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative025(self):
@@ -330,7 +339,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative026(self):
@@ -340,7 +349,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative027(self):
@@ -351,7 +360,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr='1e-3', l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative028(self):
@@ -362,7 +371,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=0.0, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative029(self):
@@ -371,7 +380,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, clip_norm=5.0, validation_fraction=0.1,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative030(self):
@@ -382,7 +392,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg='1e-4', clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative031(self):
@@ -393,7 +403,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=-2.0, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative032(self):
@@ -402,7 +412,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, clip_norm=5.0,
-                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128
+                max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative033(self):
@@ -413,7 +424,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert='True', batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=128
+                lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative034(self):
@@ -422,7 +433,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42, lstm_units=128
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, random_seed=42, lstm_units=128,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative035(self):
@@ -433,7 +445,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose='False',
-                random_seed=42, lstm_units=128
+                random_seed=42, lstm_units=128, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative036(self):
@@ -442,7 +454,8 @@ class TestBertNer(unittest.TestCase):
             BERT_NER.check_params(
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
-                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42
+                validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
+                use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative037(self):
@@ -453,7 +466,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 lstm_units='128', finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 clip_norm=5.0, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42
+                random_seed=42, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative038(self):
@@ -463,7 +476,7 @@ class TestBertNer(unittest.TestCase):
                 bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                 finetune_bert=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, clip_norm=5.0,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                lstm_units=-3
+                lstm_units=-3, use_additional_features=True, udpipe_lang='en'
             )
 
     def test_check_X_positive(self):
@@ -971,10 +984,11 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, lstm_units=32)
+                            validation_fraction=0.3, random_seed=None, lstm_units=32, udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
+        self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
@@ -989,6 +1003,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'max_seq_length'))
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertIsInstance(res.udpipe_lang, str)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
@@ -1003,22 +1019,32 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.max_seq_length, int)
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
         self.assertTrue(hasattr(res, 'sess_'))
+        self.assertTrue(hasattr(res, 'universal_pos_tags_dict_'))
+        self.assertTrue(hasattr(res, 'universal_dependencies_dict_'))
+        self.assertTrue(hasattr(res, 'nlp_'))
         self.assertEqual(res.classes_list_, ('LOCATION', 'ORG', 'PERSON'))
         self.assertIsInstance(res.shapes_list_, tuple)
         self.assertGreater(len(res.shapes_list_), 3)
         self.assertEqual(res.shapes_list_[-3:], ('[CLS]', '[SEP]', '[UNK]'))
+        self.assertIsInstance(res.universal_pos_tags_dict_, dict)
+        self.assertIsInstance(res.universal_dependencies_dict_, dict)
+        self.assertIsInstance(res.nlp_, UDPipeLanguage)
+        self.assertEqual(len(res.universal_pos_tags_dict_), len(UNIVERSAL_POS_TAGS))
+        self.assertEqual(len(res.universal_dependencies_dict_), len(UNIVERSAL_DEPENDENCIES))
 
     def test_fit_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=True, max_epochs=3, batch_size=2, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=42, lstm_units=32)
+                            validation_fraction=0.3, random_seed=42, lstm_units=32, udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
+        self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
@@ -1033,6 +1059,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'max_seq_length'))
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertIsInstance(res.udpipe_lang, str)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
@@ -1047,6 +1075,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.max_seq_length, int)
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertEqual(res.random_seed, 42)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
@@ -1060,10 +1089,12 @@ class TestBertNer(unittest.TestCase):
     def test_fit_positive03(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None, lstm_units=None, clip_norm=None)
+                            validation_fraction=0.3, random_seed=None, lstm_units=None, clip_norm=None,
+                            udpipe_lang='ru', use_additional_features=False)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
+        self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
@@ -1078,6 +1109,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'max_seq_length'))
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertIsInstance(res.udpipe_lang, str)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsNone(res.lstm_units)
         self.assertIsInstance(res.lr, float)
@@ -1092,6 +1125,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.max_seq_length, int)
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
@@ -1103,11 +1137,12 @@ class TestBertNer(unittest.TestCase):
 
     def test_fit_predict(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=5, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=42, udpipe_lang='ru', use_additional_features=True)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
+        self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
@@ -1122,6 +1157,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'max_seq_length'))
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertIsInstance(res.udpipe_lang, str)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
@@ -1136,6 +1173,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.max_seq_length, int)
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
@@ -1156,18 +1194,89 @@ class TestBertNer(unittest.TestCase):
 
     def test_predict_negative(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, random_seed=None)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, random_seed=None, udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         with self.assertRaises(NotFittedError):
             _ = self.ner.predict(X_train)
 
+    def test_tokenize_all_01(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=1, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, udpipe_lang='ru', use_additional_features=True)
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
+        self.ner.fit(X_train, y_train)
+        res = self.ner.tokenize_all(X_train, y_train, shapes_vocabulary=self.ner.shapes_list_)
+        self.assertIsInstance(res, tuple)
+        self.assertEqual(len(res), 4)
+        X_train_tokenized, y_train_tokenized, shapes_list, bounds_of_tokens_for_training = res
+        self.assertIsInstance(X_train_tokenized, list)
+        self.assertIsInstance(y_train_tokenized, np.ndarray)
+        self.assertIs(self.ner.shapes_list_, shapes_list)
+        self.assertIsInstance(bounds_of_tokens_for_training, np.ndarray)
+        self.assertEqual(len(X_train_tokenized), 4)
+        self.assertEqual(y_train_tokenized.shape, (len(y_train), self.ner.max_seq_length))
+        for data_idx in range(3):
+            self.assertIsInstance(X_train_tokenized[data_idx], np.ndarray)
+            self.assertEqual(X_train_tokenized[data_idx].shape, (len(X_train), self.ner.max_seq_length))
+        data_idx = 3
+        self.assertIsInstance(X_train_tokenized[data_idx], np.ndarray)
+        self.assertEqual(len(X_train_tokenized[data_idx].shape), 3)
+        self.assertEqual(X_train_tokenized[data_idx].shape[0], len(X_train))
+        self.assertEqual(X_train_tokenized[data_idx].shape[1], self.ner.max_seq_length)
+        self.assertGreater(X_train_tokenized[data_idx].shape[2],
+                           4 + len(UNIVERSAL_POS_TAGS) + len(UNIVERSAL_DEPENDENCIES))
+        for sample_idx in range(X_train_tokenized[data_idx].shape[0]):
+            n = 0
+            for token_idx in range(X_train_tokenized[data_idx].shape[1]):
+                if X_train_tokenized[data_idx][sample_idx][token_idx].sum() < 1e-3:
+                    break
+                n += 1
+            self.assertGreater(n, 0, msg='Sample {0}: additional features are not defined!'.format(sample_idx))
+            for token_idx in range(n):
+                self.assertAlmostEqual(X_train_tokenized[data_idx][sample_idx][token_idx][0:4].sum(), 1.0,
+                                       msg='Sample {0}, token {1}: additional features are wrong!'.format(
+                                           sample_idx, token_idx))
+            for token_idx in range(1, n - 1):
+                start_pos = 4
+                end_pos = 4 + len(UNIVERSAL_POS_TAGS)
+                self.assertAlmostEqual(X_train_tokenized[data_idx][sample_idx][token_idx][start_pos:end_pos].sum(), 1.0,
+                                       msg='Sample {0}, token {1}: part of speech is not defined!'.format(
+                                           sample_idx, token_idx))
+                start_pos = 4 + len(UNIVERSAL_POS_TAGS)
+                end_pos = 4 + len(UNIVERSAL_POS_TAGS) + len(UNIVERSAL_DEPENDENCIES)
+                self.assertGreaterEqual(X_train_tokenized[data_idx][sample_idx][token_idx][start_pos:end_pos].sum(),
+                                        1.0,
+                                        msg='Sample {0}, token {1}: dependency tag is not defined!'.format(
+                                            sample_idx, token_idx))
+
+    def test_tokenize_all_02(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=1, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=None, udpipe_lang='ru', use_additional_features=False)
+        X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
+        self.ner.fit(X_train, y_train)
+        res = self.ner.tokenize_all(X_train, y_train, shapes_vocabulary=self.ner.shapes_list_)
+        self.assertIsInstance(res, tuple)
+        self.assertEqual(len(res), 4)
+        X_train_tokenized, y_train_tokenized, shapes_list, bounds_of_tokens_for_training = res
+        self.assertIsInstance(X_train_tokenized, list)
+        self.assertIsInstance(y_train_tokenized, np.ndarray)
+        self.assertIs(self.ner.shapes_list_, shapes_list)
+        self.assertIsInstance(bounds_of_tokens_for_training, np.ndarray)
+        self.assertEqual(len(X_train_tokenized), 3)
+        self.assertEqual(y_train_tokenized.shape, (len(y_train), self.ner.max_seq_length))
+        for data_idx in range(3):
+            self.assertIsInstance(X_train_tokenized[data_idx], np.ndarray)
+            self.assertEqual(X_train_tokenized[data_idx].shape, (len(X_train), self.ner.max_seq_length))
+
     def test_serialize_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
-        self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None)
+        self.ner = BERT_NER(finetune_bert=False, max_epochs=5, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
+                            validation_fraction=0.3, random_seed=42, udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, BERT_NER)
+        self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lstm_units'))
         self.assertTrue(hasattr(res, 'lr'))
@@ -1182,6 +1291,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(res, 'max_seq_length'))
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
+        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertIsInstance(res.udpipe_lang, str)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lstm_units, int)
         self.assertIsInstance(res.lr, float)
@@ -1196,6 +1307,7 @@ class TestBertNer(unittest.TestCase):
         self.assertIsInstance(res.max_seq_length, int)
         self.assertIsInstance(res.validation_fraction, float)
         self.assertIsInstance(res.verbose, bool)
+        self.assertIsInstance(res.use_additional_features, bool)
         self.assertTrue(hasattr(res, 'classes_list_'))
         self.assertTrue(hasattr(res, 'shapes_list_'))
         self.assertTrue(hasattr(res, 'tokenizer_'))
@@ -1231,7 +1343,8 @@ class TestBertNer(unittest.TestCase):
                 self.assertEqual(y_pred1[sample_idx][ne_type], y_pred2[sample_idx][ne_type])
 
     def test_serialize_positive02(self):
-        self.ner = BERT_NER(random_seed=31)
+        self.ner = BERT_NER(random_seed=31, udpipe_lang='ru')
+        old_udpipe_lang = self.ner.udpipe_lang
         old_batch_size = self.ner.batch_size
         old_lstm_units = self.ner.lstm_units
         old_lr = self.ner.lr
@@ -1246,6 +1359,7 @@ class TestBertNer(unittest.TestCase):
         old_max_seq_length = self.ner.max_seq_length
         old_validation_fraction = self.ner.validation_fraction
         old_verbose = self.ner.verbose
+        old_use_additional_features = self.ner.use_additional_features
         with tempfile.NamedTemporaryFile(mode='w', delete=True) as fp:
             self.temp_file_name = fp.name
         with open(self.temp_file_name, mode='wb') as fp:
@@ -1255,6 +1369,7 @@ class TestBertNer(unittest.TestCase):
         with open(self.temp_file_name, mode='rb') as fp:
             self.ner = pickle.load(fp)
         self.assertIsInstance(self.ner, BERT_NER)
+        self.assertTrue(hasattr(self.ner, 'udpipe_lang'))
         self.assertTrue(hasattr(self.ner, 'batch_size'))
         self.assertTrue(hasattr(self.ner, 'lstm_units'))
         self.assertTrue(hasattr(self.ner, 'lr'))
@@ -1269,6 +1384,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.ner, 'max_seq_length'))
         self.assertTrue(hasattr(self.ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.ner, 'verbose'))
+        self.assertTrue(hasattr(self.ner, 'use_additional_features'))
+        self.assertEqual(self.ner.udpipe_lang, old_udpipe_lang)
         self.assertEqual(self.ner.batch_size, old_batch_size)
         self.assertEqual(self.ner.lstm_units, old_lstm_units)
         self.assertAlmostEqual(self.ner.lr, old_lr)
@@ -1282,13 +1399,15 @@ class TestBertNer(unittest.TestCase):
         self.assertEqual(self.ner.max_seq_length, old_max_seq_length)
         self.assertAlmostEqual(self.ner.validation_fraction, old_validation_fraction)
         self.assertEqual(self.ner.verbose, old_verbose)
+        self.assertEqual(self.ner.use_additional_features, old_use_additional_features)
         self.assertEqual(self.ner.random_seed, old_random_seed)
 
     def test_copy_positive01(self):
-        self.ner = BERT_NER(random_seed=0)
+        self.ner = BERT_NER(random_seed=0, udpipe_lang='ru', use_additional_features=True)
         self.another_ner = copy.copy(self.ner)
         self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
+        self.assertTrue(hasattr(self.another_ner, 'udpipe_lang'))
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
         self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
@@ -1303,6 +1422,8 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
         self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
+        self.assertTrue(hasattr(self.another_ner, 'use_additional_features'))
+        self.assertEqual(self.ner.udpipe_lang, self.another_ner.udpipe_lang)
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
         self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
@@ -1317,16 +1438,18 @@ class TestBertNer(unittest.TestCase):
         self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
         self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
         self.assertEqual(self.ner.verbose, self.another_ner.verbose)
+        self.assertEqual(self.ner.use_additional_features, self.another_ner.use_additional_features)
 
     def test_copy_positive02(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = BERT_NER(finetune_bert=False, max_epochs=3, batch_size=4, max_seq_length=128, gpu_memory_frac=0.9,
-                            validation_fraction=0.3, random_seed=None)
+                            validation_fraction=0.3, random_seed=None, udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         self.ner.fit(X_train, y_train)
         self.another_ner = copy.copy(self.ner)
         self.assertIsInstance(self.another_ner, BERT_NER)
         self.assertIsNot(self.ner, self.another_ner)
+        self.assertTrue(hasattr(self.another_ner, 'udpipe_lang'))
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
         self.assertTrue(hasattr(self.another_ner, 'lstm_units'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
@@ -1341,10 +1464,12 @@ class TestBertNer(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'max_seq_length'))
         self.assertTrue(hasattr(self.another_ner, 'validation_fraction'))
         self.assertTrue(hasattr(self.another_ner, 'verbose'))
+        self.assertTrue(hasattr(self.another_ner, 'use_additional_features'))
         self.assertTrue(hasattr(self.another_ner, 'classes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'shapes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'tokenizer_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
+        self.assertEqual(self.ner.udpipe_lang, self.another_ner.udpipe_lang)
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
         self.assertEqual(self.ner.lstm_units, self.another_ner.lstm_units)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
@@ -1359,6 +1484,7 @@ class TestBertNer(unittest.TestCase):
         self.assertEqual(self.ner.max_seq_length, self.another_ner.max_seq_length)
         self.assertAlmostEqual(self.ner.validation_fraction, self.another_ner.validation_fraction)
         self.assertEqual(self.ner.verbose, self.another_ner.verbose)
+        self.assertEqual(self.ner.use_additional_features, self.another_ner.use_additional_features)
         self.assertIs(self.ner.classes_list_, self.another_ner.classes_list_)
         self.assertIs(self.ner.shapes_list_, self.another_ner.shapes_list_)
         self.assertIs(self.ner.tokenizer_, self.another_ner.tokenizer_)
