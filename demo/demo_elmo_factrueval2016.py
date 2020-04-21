@@ -8,25 +8,26 @@ import sys
 import tempfile
 from typing import Union
 
-from nltk.tokenize.nist import NISTTokenizer
-
+from rusenttokenize import ru_sent_tokenize
 
 try:
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
+    from deep_ner.udpipe_data import create_udpipe_pipeline
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
+    from deep_ner.udpipe_data import create_udpipe_pipeline
 
 
-def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool, max_epochs: int,
-          batch_size: int, lr: float, l2: float, gpu_memory_frac: float, model_name: str,
-          collection3_dir: Union[str, None]=None) -> ELMo_NER:
+def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool,
+          use_additional_features: bool, max_epochs: int, patience: int, batch_size: int, lr: float, l2: float,
+          gpu_memory_frac: float, model_name: str, collection3_dir: Union[str, None]=None) -> ELMo_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -45,12 +46,16 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         print('Number of samples is {0}.'.format(len(y)))
         print('')
         max_number_of_tokens = 0
-        tokenizer = NISTTokenizer()
+        pipeline = create_udpipe_pipeline('ru')
         for cur in X:
-            n_tokens = len(tokenizer.international_tokenize(cur))
+            spacy_doc = pipeline(cur)
+            n_tokens = 0
+            for _ in spacy_doc:
+                n_tokens += 1
+            del spacy_doc
             if n_tokens > max_number_of_tokens:
                 max_number_of_tokens = n_tokens
-        del tokenizer
+        del pipeline
         print('Maximal number of tokens is {0}.'.format(max_number_of_tokens))
         n_tokens = 2
         while n_tokens < max_number_of_tokens:
@@ -58,15 +63,16 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         elmo_hub_module_handle = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz'
         recognizer = ELMo_NER(
             finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=l2, max_seq_length=n_tokens,
-            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.25, max_epochs=max_epochs, patience=5,
-            gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr
+            elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.25, max_epochs=max_epochs,
+            patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr, udpipe_lang='ru',
+            use_additional_features=use_additional_features
         )
         if collection3_dir is None:
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
             if not split_by_paragraphs:
-                X_train, y_train = divide_dataset_by_sentences(X_train, y_train)
+                X_train, y_train = divide_dataset_by_sentences(X_train, y_train, sent_tokenize_func=ru_sent_tokenize)
             for sample_idx in range(len(y_train)):
                 new_y_sample = dict()
                 for ne_type in sorted(list(y_train[sample_idx].keys())):
@@ -165,17 +171,21 @@ def main():
                         help='Path to the Collection-3 data set.')
     parser.add_argument('--batch', dest='batch_size', type=int, required=False, default=16,
                         help='Size of mini-batch.')
-    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
+    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=100,
                         help='Maximal number of training epochs.')
+    parser.add_argument('--patience', dest='patience', type=int, required=False, default=10,
+                        help='Number of iterations with no improvement to wait before stopping the training.')
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
                         help='Allocable part of the GPU memory for the NER model.')
     parser.add_argument('--finetune_elmo', dest='finetune_elmo', required=False, action='store_true',
                         default=False, help='Will be the ELMo and CRF finetuned together? Or the ELMo will be frozen?')
     parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-3, help='Learning rate.')
-    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-3,
+    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-2,
                         help='L2 regularization factor.')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
+    parser.add_argument('--additional_features', dest='additional_features', required=False, action='store_true',
+                        default=False, help='Will be additional features used?')
     args = parser.parse_args()
 
     if args.text_unit not in {'sentence', 'paragraph'}:
@@ -184,9 +194,10 @@ def main():
     devset_dir_name = os.path.join(os.path.normpath(args.data_name), 'devset')
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, elmo_will_be_tuned=args.finetune_elmo,
-                       max_epochs=args.max_epochs, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
-                       model_name=os.path.normpath(args.model_name), lr=args.lr, l2=args.l2_coeff,
-                       split_by_paragraphs=(args.text_unit == 'paragraph'), collection3_dir=collection3_dir_name)
+                       max_epochs=args.max_epochs, patience=args.patience, batch_size=args.batch_size,
+                       gpu_memory_frac=args.gpu_memory_frac, model_name=os.path.normpath(args.model_name), lr=args.lr,
+                       l2=args.l2_coeff, split_by_paragraphs=(args.text_unit == 'paragraph'),
+                       collection3_dir=collection3_dir_name, use_additional_features=args.additional_features)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
               results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))
 

@@ -6,8 +6,10 @@ import os
 from typing import Dict, Tuple, List, Union, Set
 import warnings
 
-from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.tokenize import sent_tokenize
 import numpy as np
+
+from .udpipe_data import create_udpipe_pipeline
 
 
 def load_tokens_from_factrueval2016_by_paragraphs(text_file_name: str, tokens_file_name: str) -> \
@@ -282,7 +284,7 @@ def load_objects_from_factrueval2016(objects_file_name: str,
     return objects
 
 
-def check_factrueval_tokenization(src_dir_name: str, split_by_paragraphs: bool):
+def check_factrueval_tokenization(src_dir_name: str, split_by_paragraphs: bool, udpipe_lang: str = 'ru'):
     factrueval_files = dict()
     for cur_file_name in os.listdir(src_dir_name):
         if cur_file_name.endswith('.objects'):
@@ -309,6 +311,7 @@ def check_factrueval_tokenization(src_dir_name: str, split_by_paragraphs: bool):
         factrueval_files[base_name] = sorted(factrueval_files[base_name])
     n_good = 0
     n_total = 0
+    udpipe_pipeline = create_udpipe_pipeline(udpipe_lang)
     for base_name in sorted(list(factrueval_files.keys())):
         if split_by_paragraphs:
             tokens, text, paragraphs = load_tokens_from_factrueval2016_by_paragraphs(
@@ -320,7 +323,9 @@ def check_factrueval_tokenization(src_dir_name: str, split_by_paragraphs: bool):
             )
         tokens_by_tokenizer = []
         for paragraph_start, paragraph_end in paragraphs:
-            tokens_by_tokenizer += word_tokenize(text[paragraph_start:paragraph_end])
+            udpipe_doc = udpipe_pipeline(text[paragraph_start:paragraph_end])
+            for udpipe_token in udpipe_doc:
+                tokens_by_tokenizer.append(udpipe_token.text)
         tokens_by_factrueval = []
         for token_id in sorted(list(tokens.keys())):
             tokens_by_factrueval.append(tokens[token_id][2])
@@ -1053,16 +1058,23 @@ def save_dataset_as_bio(source_file_name: str, X: Union[list, tuple, np.array], 
             dst_fp.close()
 
 
-def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]) -> \
+def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, tuple, np.array],
+                                sent_tokenize_func=sent_tokenize) -> \
         Tuple[Union[list, tuple, np.array], Union[list, tuple, np.array]]:
     X_new = []
     y_new = []
     n_samples = len(X)
     for sample_idx in range(n_samples):
-        sentences = sent_tokenize(X[sample_idx])
+        sentences = sent_tokenize_func(X[sample_idx])
+        if not isinstance(sentences, list):
+            raise ValueError('Text {0} was tokenized by sentences incorrectly! '
+                             'Expected a list of strings, but got a `{1}`'.format(sample_idx, type(sentences)))
         start_idx = 0
         bounds_of_sentences = []
-        for cur_sent in sentences:
+        for sent_idx, cur_sent in enumerate(sentences):
+            if not isinstance(cur_sent, str):
+                raise ValueError('Text {0} was tokenized by sentences incorrectly! Expected a list of strings, but '
+                                 'item {1} of this list is a `{2}`'.format(sample_idx, sent_idx, type(cur_sent)))
             found_idx = X[sample_idx][start_idx:].find(cur_sent)
             if found_idx < 0:
                 raise ValueError('The text `{0}` cannot be tokenized by sentences!'.format(X[sample_idx]))

@@ -17,8 +17,8 @@ except:
 
 
 def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool, bert_will_be_tuned: bool,
-          lstm_layer_size: Union[int, None], l2: float, max_epochs: int, batch_size: int, gpu_memory_frac: float,
-          model_name: str) -> BERT_NER:
+          use_additional_features: bool, lstm_layer_size: Union[int, None], l2: float, max_epochs: int, patience: int,
+          batch_size: int, gpu_memory_frac: float, model_name: str) -> BERT_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -47,8 +47,8 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
         recognizer = BERT_NER(
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, max_epochs=max_epochs,
-            patience=5, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=1e-6 if bert_will_be_tuned else 1e-4
+            patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
+            lr=1e-6 if bert_will_be_tuned else 1e-4, udpipe_lang='en', use_additional_features=use_additional_features
         )
         recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         print('')
@@ -110,9 +110,11 @@ def main():
                         help='The file name into which all tokens and recognized BIO labels will be saved.')
     parser.add_argument('--batch', dest='batch_size', type=int, required=False, default=16,
                         help='Size of mini-batch.')
-    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
+    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=100,
                         help='Maximal number of training epochs.')
-    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-3,
+    parser.add_argument('--patience', dest='patience', type=int, required=False, default=10,
+                        help='Number of iterations with no improvement to wait before stopping the training.')
+    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-2,
                         help='L2 regularization factor.')
     parser.add_argument('--lstm', dest='lstm_units', type=int, required=False, default=None,
                         help='The LSTM layer size (if it is not specified, than the LSTM layer is not used).')
@@ -125,6 +127,8 @@ def main():
                                            'large cased BERT model from the TF-Hub will be used).')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
+    parser.add_argument('--additional_features', dest='additional_features', required=False, action='store_true',
+                        default=False, help='Will be additional features used?')
     args = parser.parse_args()
 
     train_file_name = os.path.normpath(args.train_file_name)
@@ -142,7 +146,8 @@ def main():
             raise ValueError('The directory `{0}` does not exist!'.format(path_to_bert))
     BERT_NER.PATH_TO_BERT = path_to_bert
     recognizer = train(train_file_name=train_file_name, valid_file_name=valid_file_name, l2=args.l2_coeff,
-                       bert_will_be_tuned=args.finetune_bert, max_epochs=args.max_epochs, batch_size=args.batch_size,
+                       bert_will_be_tuned=args.finetune_bert, use_additional_features=args.additional_features,
+                       max_epochs=args.max_epochs, patience=args.patience, batch_size=args.batch_size,
                        gpu_memory_frac=args.gpu_memory_frac, model_name=os.path.normpath(args.model_name),
                        lstm_layer_size=args.lstm_units, split_by_paragraphs=(args.text_unit == 'paragraph'))
     recognize(test_file_name=test_file_name, recognizer=recognizer,

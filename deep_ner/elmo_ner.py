@@ -6,7 +6,6 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
@@ -16,6 +15,7 @@ import tensorflow_hub as tfhub
 
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
+from .udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS, create_udpipe_pipeline, prepare_dependency_tag
 
 
 tf.logging.set_verbosity(tf.logging.ERROR)
@@ -25,10 +25,12 @@ elmo_ner_logger = logging.getLogger(__name__)
 
 
 class ELMo_NER(BaseEstimator, ClassifierMixin):
-    def __init__(self, elmo_hub_module_handle: str, finetune_elmo: bool=False,
-                 batch_size: int = 32, max_seq_length: int = 32, lr: float = 1e-4, l2_reg: float = 1e-5,
-                 validation_fraction: float = 0.1, max_epochs: int = 10, patience: int = 3,
+    def __init__(self, elmo_hub_module_handle: str, udpipe_lang: str, use_additional_features: bool = False,
+                 finetune_elmo: bool=False, batch_size: int = 32, max_seq_length: int = 32, lr: float = 1e-4,
+                 l2_reg: float = 1e-5, validation_fraction: float = 0.1, max_epochs: int = 10, patience: int = 3,
                  gpu_memory_frac: float = 1.0, verbose: bool = False, random_seed: Union[int, None] = None):
+        self.udpipe_lang = udpipe_lang
+        self.use_additional_features = use_additional_features
         self.batch_size = batch_size
         self.lr = lr
         self.l2_reg = l2_reg
@@ -47,6 +49,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             del self.classes_list_
         if hasattr(self, 'shapes_list_'):
             del self.shapes_list_
+        if hasattr(self, 'nlp_'):
+            del self.nlp_
+        if hasattr(self, 'universal_pos_tags_dict_'):
+            del self.universal_pos_tags_dict_
+        if hasattr(self, 'universal_dependencies_dict_'):
+            del self.universal_dependencies_dict_
         self.finalize_model()
 
     def fit(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array],
@@ -55,7 +63,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             elmo_hub_module_handle=self.elmo_hub_module_handle, finetune_elmo=self.finetune_elmo,
             batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr, l2_reg=self.l2_reg,
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
-            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
+            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed,
+            udpipe_lang=self.udpipe_lang, use_additional_features=self.use_additional_features
         )
         self.classes_list_ = self.check_Xy(X, 'X', y, 'y')
         if hasattr(self, 'shapes_list_'):
@@ -251,7 +260,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             elmo_hub_module_handle=self.elmo_hub_module_handle, finetune_elmo=self.finetune_elmo,
             batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr, l2_reg=self.l2_reg,
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
-            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
+            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed,
+            udpipe_lang=self.udpipe_lang, use_additional_features=self.use_additional_features
         )
         self.check_X(X, 'X')
         self.is_fitted()
@@ -299,15 +309,22 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         return self.fit(X, y).predict(X)
 
     def fill_feed_dict(self, X: List[np.array], y: np.array=None) -> dict:
-        assert len(X) == 3
+        if self.use_additional_features:
+            assert len(X) == 4
+        else:
+            assert len(X) == 2
         assert len(X[0]) == self.batch_size
-        feed_dict = {ph: x for ph, x in zip(['tokens:0', 'sequence_len:0', 'additional_features:0'], X)}
+        if self.use_additional_features:
+            feed_dict = {ph: x for ph, x in zip(['tokens:0', 'sequence_len:0', 'shape_features:0',
+                                                 'linguistic_features:0'], X)}
+        else:
+            feed_dict = {ph: x for ph, x in zip(['tokens:0', 'sequence_len:0'], X)}
         if y is not None:
             feed_dict['y_ph:0'] = y
         return feed_dict
 
-    def extend_Xy(self, X: List[np.array], y: np.array=None,
-                  shuffle: bool=False) -> Union[List[np.array], Tuple[List[np.array], np.array]]:
+    def extend_Xy(self, X: List[np.array], y: np.array = None,
+                  shuffle: bool = False) -> Union[List[np.array], Tuple[List[np.array], np.array]]:
         n_samples = X[0].shape[0]
         n_extend = n_samples % self.batch_size
         if n_extend == 0:
@@ -347,22 +364,37 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             return [X_ext[idx][indices] for idx in range(len(X_ext))], y_ext[indices]
         return X_ext, y_ext
 
-    def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]=None,
-                     shapes_vocabulary: Union[tuple, None]=None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
-                                                                          tuple]:
+    def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array] = None,
+                     shapes_vocabulary: Union[tuple, None] = None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
+                                                                            tuple]:
         if shapes_vocabulary is not None:
             if len(shapes_vocabulary) < 1:
                 raise ValueError('Shapes vocabulary is empty!')
-        tokens = []
-        lenghts = []
+        tokens_of_texts = []
+        lenghts_of_texts = []
+        lingustic_features_of_texts = []
         y_tokenized = None if y is None else np.empty((len(y), self.max_seq_length), dtype=np.int32)
         n_samples = len(X)
-        shapes = []
+        shapes_of_texts = []
         shapes_dict = dict()
+        if not hasattr(self, 'universal_pos_tags_dict_'):
+            self.universal_pos_tags_dict_ = dict(zip(UNIVERSAL_POS_TAGS, range(len(UNIVERSAL_POS_TAGS))))
+        if not hasattr(self, 'universal_dependencies_dict_'):
+            self.universal_dependencies_dict_ = dict(zip(UNIVERSAL_DEPENDENCIES, range(len(UNIVERSAL_DEPENDENCIES))))
         if y is None:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = wordpunct_tokenize(source_text)
+                if not hasattr(self, 'nlp_'):
+                    self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
+                spacy_doc = self.nlp_(source_text)
+                tokenized_text = []
+                pos_tags = []
+                dependencies = []
+                for spacy_token in spacy_doc:
+                    tokenized_text.append(spacy_token.text)
+                    pos_tags.append(spacy_token.pos_)
+                    dependencies.append(spacy_token.dep_)
+                del spacy_doc
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -372,15 +404,32 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
                     shapes_of_text = shapes_of_text[:self.max_seq_length]
+                    pos_tags = pos_tags[:self.max_seq_length]
+                    dependencies = dependencies[:self.max_seq_length]
+                    lenghts_of_texts.append(len(tokenized_text))
                 elif ndiff < 0:
+                    lenghts_of_texts.append(len(tokenized_text))
                     tokenized_text += ['' for _ in range(-ndiff)]
-                tokens.append(tokenized_text)
-                lenghts.append(len(tokenized_text))
-                shapes.append(shapes_of_text)
+                else:
+                    lenghts_of_texts.append(len(tokenized_text))
+                tokens_of_texts.append(tokenized_text)
+                shapes_of_texts.append(shapes_of_text)
+                lingustic_features_of_texts.append(tuple(zip(pos_tags, dependencies)))
+                del pos_tags, dependencies, tokenized_text
         else:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
-                tokenized_text = wordpunct_tokenize(source_text)
+                if not hasattr(self, 'nlp_'):
+                    self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
+                spacy_doc = self.nlp_(source_text)
+                tokenized_text = []
+                pos_tags = []
+                dependencies = []
+                for spacy_token in spacy_doc:
+                    tokenized_text.append(spacy_token.text)
+                    pos_tags.append(spacy_token.pos_)
+                    dependencies.append(spacy_token.dep_)
+                del spacy_doc
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
@@ -396,11 +445,25 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 if ndiff > 0:
                     tokenized_text = tokenized_text[:self.max_seq_length]
                     shapes_of_text = shapes_of_text[:self.max_seq_length]
+                    pos_tags = pos_tags[:self.max_seq_length]
+                    dependencies = dependencies[:self.max_seq_length]
+                    lenghts_of_texts.append(len(tokenized_text))
                 elif ndiff < 0:
+                    lenghts_of_texts.append(len(tokenized_text))
                     tokenized_text += ['' for _ in range(-ndiff)]
-                tokens.append(tokenized_text)
-                lenghts.append(len(tokenized_text))
-                shapes.append(shapes_of_text)
+                else:
+                    lenghts_of_texts.append(len(tokenized_text))
+                tokens_of_texts.append(tokenized_text)
+                shapes_of_texts.append(shapes_of_text)
+                lingustic_features_of_texts.append(tuple(zip(pos_tags, dependencies)))
+                del pos_tags, dependencies, tokenized_text
+        assert len(X) == len(tokens_of_texts), '{0} != {1}'.format(len(X), len(tokens_of_texts))
+        assert len(tokens_of_texts) == len(lenghts_of_texts), '{0} != {1}'.format(
+            len(tokens_of_texts), len(lenghts_of_texts))
+        assert len(lenghts_of_texts) == len(lingustic_features_of_texts), '{0} != {1}'.format(
+            len(lenghts_of_texts), len(lingustic_features_of_texts))
+        assert len(lenghts_of_texts) == len(shapes_of_texts), '{0} != {1}'.format(
+            len(lenghts_of_texts), len(shapes_of_texts))
         if shapes_vocabulary is None:
             shapes_vocabulary_ = list(map(
                 lambda it2: it2[0],
@@ -414,24 +477,47 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             shapes_vocabulary_ = shapes_vocabulary
         shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_) + 3), dtype=np.float32)
         for sample_idx in range(n_samples):
-            for token_idx, cur_shape in enumerate(shapes[sample_idx]):
+            for token_idx, cur_shape in enumerate(shapes_of_texts[sample_idx]):
                 if cur_shape in shapes_vocabulary_:
                     shape_ID = shapes_vocabulary_.index(cur_shape)
                 else:
                     shape_ID = len(shapes_vocabulary_)
                 shapes_[sample_idx][token_idx][shape_ID] = 1.0
             shapes_[sample_idx][0][len(shapes_vocabulary_) + 1] = 1.0
-            shapes_[sample_idx][len(shapes[sample_idx]) - 1][len(shapes_vocabulary_) + 2] = 1.0
-        del shapes
-        return [np.array(tokens, dtype=np.str), np.array(lenghts, dtype=np.int32), shapes_], \
-               (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
+            shapes_[sample_idx][len(shapes_of_texts[sample_idx]) - 1][len(shapes_vocabulary_) + 2] = 1.0
+        del shapes_of_texts
+        linguistic_features = np.zeros((len(X), self.max_seq_length, len(self.universal_pos_tags_dict_) +
+                                        len(self.universal_dependencies_dict_)), dtype=np.float32)
+        for sample_idx in range(n_samples):
+            for token_idx in range(len(lingustic_features_of_texts[sample_idx])):
+                pos_tag, dependency_tag = lingustic_features_of_texts[sample_idx][token_idx]
+                pos_tag_id = self.universal_pos_tags_dict_.get(pos_tag, -1)
+                if pos_tag_id >= 0:
+                    linguistic_features[sample_idx][token_idx][pos_tag_id] = 1.0
+                else:
+                    raise ValueError('Part-of-speech tag `{0}` is unknown!'.format(pos_tag))
+                ok = False
+                for dependency_tag_part in prepare_dependency_tag(dependency_tag):
+                    dependency_id = self.universal_dependencies_dict_.get(dependency_tag_part, -1)
+                    if dependency_id >= 0:
+                        linguistic_features[sample_idx][token_idx][dependency_id + len(UNIVERSAL_POS_TAGS)] = 1.0
+                        ok = True
+                if not ok:
+                    raise ValueError('Dependency tag `{0}` is unknown!'.format(dependency_tag))
+        if self.use_additional_features:
+            X = [np.array(tokens_of_texts, dtype=np.str), np.array(lenghts_of_texts, dtype=np.int32), shapes_,
+                 linguistic_features]
+        else:
+            X = [np.array(tokens_of_texts, dtype=np.str), np.array(lenghts_of_texts, dtype=np.int32)]
+        return X, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
 
     def get_params(self, deep=True) -> dict:
         return {'elmo_hub_module_handle': self.elmo_hub_module_handle, 'finetune_elmo': self.finetune_elmo,
                 'batch_size': self.batch_size, 'max_seq_length': self.max_seq_length, 'lr': self.lr,
                 'l2_reg': self.l2_reg, 'max_epochs': self.max_epochs, 'patience': self.patience,
                 'validation_fraction': self.validation_fraction, 'gpu_memory_frac': self.gpu_memory_frac,
-                'verbose': self.verbose, 'random_seed': self.random_seed}
+                'verbose': self.verbose, 'random_seed': self.random_seed, 'udpipe_lang': self.udpipe_lang,
+                'use_additional_features': self.use_additional_features}
 
     def set_params(self, **params):
         for parameter, value in params.items():
@@ -445,7 +531,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             elmo_hub_module_handle=self.elmo_hub_module_handle, finetune_elmo=self.finetune_elmo,
             batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr, l2_reg=self.l2_reg,
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
-            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
+            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed,
+            udpipe_lang=self.udpipe_lang, use_additional_features=self.use_additional_features
         )
         try:
             self.is_fitted()
@@ -465,7 +552,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             elmo_hub_module_handle=self.elmo_hub_module_handle,  finetune_elmo=self.finetune_elmo,
             batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr, l2_reg=self.l2_reg,
             validation_fraction=self.validation_fraction, max_epochs=self.max_epochs, patience=self.patience,
-            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed
+            gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose, random_seed=self.random_seed,
+            udpipe_lang=self.udpipe_lang, use_additional_features=self.use_additional_features
         )
         try:
             self.is_fitted()
@@ -489,7 +577,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             self.random_seed = int(round(time.time()))
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
-        tf.compat.v1.random.set_random_seed(self.random_seed)
+        tf.random.set_random_seed(self.random_seed)
 
     def dump_all(self):
         try:
@@ -580,21 +668,38 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if self.verbose:
             elmo_ner_logger.info('The ELMo model has been loaded from the TF-Hub.')
         n_tags = len(self.classes_list_) * 2 + 1
-        additional_features = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
-            name='additional_features'
-        )
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
-        if self.finetune_elmo:
-            logits = tf.layers.dense(tf.concat([sequence_output, additional_features], axis=-1),
-                                     n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                     kernel_initializer=he_init, name='outputs_of_NER')
+        if self.use_additional_features:
+            shape_features = tf.placeholder(
+                shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 3), dtype=tf.float32,
+                name='shape_features'
+            )
+            linguistic_features = tf.placeholder(
+                shape=(self.batch_size, self.max_seq_length, len(UNIVERSAL_DEPENDENCIES) + len(UNIVERSAL_POS_TAGS)),
+                dtype=tf.float32,
+                name='linguistic_features'
+            )
+            if self.finetune_elmo:
+                logits = tf.layers.dense(tf.concat([sequence_output, shape_features, linguistic_features], axis=-1),
+                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                         kernel_initializer=he_init, name='outputs_of_NER')
+            else:
+                sequence_output_stop = tf.stop_gradient(sequence_output)
+                logits = tf.layers.dense(
+                    tf.concat([sequence_output_stop, shape_features, linguistic_features], axis=-1),
+                    n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                    kernel_initializer=he_init, name='outputs_of_NER')
         else:
-            sequence_output_stop = tf.stop_gradient(sequence_output)
-            logits = tf.layers.dense(
-                tf.concat([sequence_output_stop, additional_features], axis=-1),
-                n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                kernel_initializer=he_init, name='outputs_of_NER')
+            if self.finetune_elmo:
+                logits = tf.layers.dense(sequence_output,
+                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                                         kernel_initializer=he_init, name='outputs_of_NER')
+            else:
+                sequence_output_stop = tf.stop_gradient(sequence_output)
+                logits = tf.layers.dense(
+                    sequence_output_stop,
+                    n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                    kernel_initializer=he_init, name='outputs_of_NER')
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths)
         loss_tensor = -log_likelihood
         base_loss = tf.reduce_mean(loss_tensor)
@@ -651,6 +756,13 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
 
     @staticmethod
     def check_params(**kwargs):
+        if 'udpipe_lang' not in kwargs:
+            raise ValueError('`udpipe_lang` is not specified!')
+        if not isinstance(kwargs['udpipe_lang'], str):
+            raise ValueError('`udpipe_lang` is wrong! Expected `{0}`, got `{1}`.'.format(
+                type('abc'), type(kwargs['udpipe_lang'])))
+        if len(kwargs['udpipe_lang']) < 1:
+            raise ValueError('`udpipe_lang` is wrong! Expected a nonepty string.')
         if 'batch_size' not in kwargs:
             raise ValueError('`batch_size` is not specified!')
         if (not isinstance(kwargs['batch_size'], int)) and (not isinstance(kwargs['batch_size'], np.int32)) and \
@@ -756,6 +868,15 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 (not isinstance(kwargs['verbose'], bool)) and (not isinstance(kwargs['verbose'], np.bool)):
             raise ValueError('`verbose` is wrong! Expected `{0}`, got `{1}`.'.format(
                 type(True), type(kwargs['verbose'])))
+        if 'use_additional_features' not in kwargs:
+            raise ValueError('`use_additional_features` is not specified!')
+        if (not isinstance(kwargs['use_additional_features'], int)) and \
+                (not isinstance(kwargs['use_additional_features'], np.int32)) and \
+                (not isinstance(kwargs['use_additional_features'], np.uint32)) and \
+                (not isinstance(kwargs['use_additional_features'], bool)) and \
+                (not isinstance(kwargs['use_additional_features'], np.bool)):
+            raise ValueError('`use_additional_features` is wrong! Expected `{0}`, got `{1}`.'.format(
+                type(True), type(kwargs['use_additional_features'])))
 
     @staticmethod
     def calculate_bounds_of_tokens(source_text: str, tokenized_text: List[str]) -> List[Tuple[int, int]]:

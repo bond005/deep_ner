@@ -6,8 +6,9 @@ import os
 import pickle
 import sys
 import tempfile
-
 from typing import Union
+
+from rusenttokenize import ru_sent_tokenize
 
 try:
     from deep_ner.bert_ner import BERT_NER, bert_ner_logger
@@ -22,8 +23,8 @@ except:
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_be_tuned: bool,
-          lstm_layer_size: Union[int, None], l2: float, max_epochs: int, batch_size: int, gpu_memory_frac: float,
-          model_name: str, collection3_dir: Union[str, None]=None) -> BERT_NER:
+          use_additional_features: bool, lstm_layer_size: Union[int, None], l2: float, max_epochs: int, patience: int,
+          batch_size: int, gpu_memory_frac: float, model_name: str, collection3_dir: Union[str, None]=None) -> BERT_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -48,15 +49,15 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
         recognizer = BERT_NER(
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.25,
-            max_epochs=max_epochs, patience=5, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=1e-5 if bert_will_be_tuned else 1e-3
+            max_epochs=max_epochs, patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
+            lr=1e-5 if bert_will_be_tuned else 1e-3, udpipe_lang='ru', use_additional_features=use_additional_features
         )
         if collection3_dir is None:
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
             if not split_by_paragraphs:
-                X_train, y_train = divide_dataset_by_sentences(X_train, y_train)
+                X_train, y_train = divide_dataset_by_sentences(X_train, y_train, sent_tokenize_func=ru_sent_tokenize)
             for sample_idx in range(len(y_train)):
                 new_y_sample = dict()
                 for ne_type in sorted(list(y_train[sample_idx].keys())):
@@ -155,11 +156,13 @@ def main():
                         help='Path to the Collection-3 data set.')
     parser.add_argument('--batch', dest='batch_size', type=int, required=False, default=16,
                         help='Size of mini-batch.')
-    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=10,
+    parser.add_argument('--max_epochs', dest='max_epochs', type=int, required=False, default=100,
                         help='Maximal number of training epochs.')
+    parser.add_argument('--patience', dest='patience', type=int, required=False, default=10,
+                        help='Number of iterations with no improvement to wait before stopping the training.')
     parser.add_argument('--lstm', dest='lstm_units', type=int, required=False, default=None,
                         help='The LSTM layer size (if it is not specified, than the LSTM layer is not used).')
-    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-3,
+    parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-2,
                         help='L2 regularization factor.')
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
                         help='Allocable part of the GPU memory for the NER model.')
@@ -170,6 +173,8 @@ def main():
                                            'multilingual BERT model from the TF-Hub will be used).')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
+    parser.add_argument('--additional_features', dest='additional_features', required=False, action='store_true',
+                        default=False, help='Will be additional features used?')
     args = parser.parse_args()
 
     if args.text_unit not in {'sentence', 'paragraph'}:
@@ -187,7 +192,8 @@ def main():
     devset_dir_name = os.path.join(os.path.normpath(args.data_name), 'devset')
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, bert_will_be_tuned=args.finetune_bert,
-                       max_epochs=args.max_epochs, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
+                       use_additional_features=args.additional_features, max_epochs=args.max_epochs,
+                       patience=args.patience, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
                        model_name=os.path.normpath(args.model_name), lstm_layer_size=args.lstm_units, l2=args.l2_coeff,
                        split_by_paragraphs=(args.text_unit == 'paragraph'), collection3_dir=collection3_dir_name)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,

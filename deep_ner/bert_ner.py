@@ -6,7 +6,6 @@ import tempfile
 import time
 from typing import Dict, Union, List, Tuple
 
-from nltk import wordpunct_tokenize
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_is_fitted
@@ -18,6 +17,7 @@ from bert.modeling import BertModel, BertConfig, get_assignment_map_from_checkpo
 
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
+from .udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS, create_udpipe_pipeline, prepare_dependency_tag
 
 
 tf.logging.set_verbosity(tf.logging.ERROR)
@@ -29,12 +29,14 @@ bert_ner_logger = logging.getLogger(__name__)
 class BERT_NER(BaseEstimator, ClassifierMixin):
     PATH_TO_BERT = None
 
-    def __init__(self, finetune_bert: bool = False,
+    def __init__(self, udpipe_lang: str, use_additional_features: bool = False, finetune_bert: bool = False,
                  bert_hub_module_handle: str = 'https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
                  batch_size: int=32, max_seq_length: int = 512, lr: float = 1e-4, lstm_units: Union[int, None] = 256,
                  l2_reg: float = 1e-5, clip_norm: Union[float, None] = 5.0, validation_fraction: float = 0.1,
                  max_epochs: int = 10, patience: int = 3, gpu_memory_frac: float = 1.0, verbose: bool = False,
                  random_seed: Union[int, None] = None):
+        self.udpipe_lang = udpipe_lang
+        self.use_additional_features = use_additional_features
         self.batch_size = batch_size
         self.lr = lr
         self.l2_reg = l2_reg
@@ -57,6 +59,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             del self.shapes_list_
         if hasattr(self, 'tokenizer_'):
             del self.tokenizer_
+        if hasattr(self, 'nlp_'):
+            del self.nlp_
+        if hasattr(self, 'universal_pos_tags_dict_'):
+            del self.universal_pos_tags_dict_
+        if hasattr(self, 'universal_dependencies_dict_'):
+            del self.universal_dependencies_dict_
         self.finalize_model()
 
     def fit(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array],
@@ -66,7 +74,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
             l2_reg=self.l2_reg, validation_fraction=self.validation_fraction, max_epochs=self.max_epochs,
             patience=self.patience, gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose,
-            clip_norm=self.clip_norm, random_seed=self.random_seed
+            clip_norm=self.clip_norm, random_seed=self.random_seed, udpipe_lang=self.udpipe_lang,
+            use_additional_features=self.use_additional_features
         )
         self.classes_list_ = self.check_Xy(X, 'X', y, 'y')
         if hasattr(self, 'shapes_list_'):
@@ -284,7 +293,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
             l2_reg=self.l2_reg, validation_fraction=self.validation_fraction, max_epochs=self.max_epochs,
             patience=self.patience, gpu_memory_frac=self.gpu_memory_frac, verbose=self.verbose,
-            random_seed=self.random_seed, clip_norm=self.clip_norm
+            random_seed=self.random_seed, clip_norm=self.clip_norm, udpipe_lang=self.udpipe_lang,
+            use_additional_features=self.use_additional_features
         )
         self.check_X(X, 'X')
         self.is_fitted()
@@ -334,11 +344,19 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         return self.fit(X, y).predict(X)
 
     def fill_feed_dict(self, X: List[np.array], y: np.array=None) -> dict:
-        assert len(X) == 4
+        if self.use_additional_features:
+            assert len(X) == 4
+        else:
+            assert len(X) == 3
         assert len(X[0]) == self.batch_size
-        feed_dict = {
-            ph: x for ph, x in zip(['input_ids:0', 'input_mask:0', 'segment_ids:0', 'additional_features:0'], X)
-        }
+        if self.use_additional_features:
+            feed_dict = {
+                ph: x for ph, x in zip(['input_ids:0', 'input_mask:0', 'segment_ids:0', 'additional_features:0'], X)
+            }
+        else:
+            feed_dict = {
+                ph: x for ph, x in zip(['input_ids:0', 'input_mask:0', 'segment_ids:0'], X)
+            }
         if y is not None:
             feed_dict['y_ph:0'] = y
         return feed_dict
@@ -388,9 +406,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             return [X_ext[idx][indices] for idx in range(len(X_ext))], y_ext[indices], bounds_of_tokens_ext[indices]
         return X_ext, y_ext, bounds_of_tokens_ext
 
-    def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array]=None,
-                     shapes_vocabulary: Union[tuple, None]=None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
-                                                                          tuple, np.ndarray]:
+    def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array] = None,
+                     shapes_vocabulary: Union[tuple, None] = None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
+                                                                            tuple, np.ndarray]:
         if shapes_vocabulary is not None:
             if len(shapes_vocabulary) < 4:
                 raise ValueError('Shapes vocabulary is wrong!')
@@ -400,12 +418,24 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 raise ValueError('Shapes vocabulary is wrong!')
             if shapes_vocabulary[-3] != '[CLS]':
                 raise ValueError('Shapes vocabulary is wrong!')
-        X_tokenized = [
-            np.zeros((len(X), self.max_seq_length), dtype=np.int32),
-            np.zeros((len(X), self.max_seq_length), dtype=np.int32),
-            np.zeros((len(X), self.max_seq_length), dtype=np.int32),
-            np.zeros((len(X), self.max_seq_length, 4), dtype=np.float32)
-        ]
+        if not hasattr(self, 'universal_pos_tags_dict_'):
+            self.universal_pos_tags_dict_ = dict(zip(UNIVERSAL_POS_TAGS, range(len(UNIVERSAL_POS_TAGS))))
+        if not hasattr(self, 'universal_dependencies_dict_'):
+            self.universal_dependencies_dict_ = dict(zip(UNIVERSAL_DEPENDENCIES, range(len(UNIVERSAL_DEPENDENCIES))))
+        if self.use_additional_features:
+            X_tokenized = [
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32),
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32),
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32),
+                np.zeros((len(X), self.max_seq_length, 4 + len(self.universal_dependencies_dict_) +
+                          len(self.universal_pos_tags_dict_)), dtype=np.float32)
+            ]
+        else:
+            X_tokenized = [
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32),
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32),
+                np.zeros((len(X), self.max_seq_length), dtype=np.int32)
+            ]
         all_tokenized_texts = []
         bounds_of_tokens = []
         n_samples = len(X)
@@ -416,7 +446,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             tokenized_text = []
             bounds_of_tokens_for_text = []
             start_pos = 0
-            for cur_word in wordpunct_tokenize(source_text):
+            if not hasattr(self, 'nlp_'):
+                self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
+            spacy_doc = self.nlp_(source_text)
+            pos_tags = []
+            dependencies = []
+            for spacy_token in spacy_doc:
+                cur_word = spacy_token.text
                 found_idx_1 = source_text[start_pos:].find(cur_word)
                 if found_idx_1 < 0:
                     raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
@@ -425,6 +461,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 if '[UNK]' in subwords:
                     tokenized_text.append('[UNK]')
                     bounds_of_tokens_for_text.append((start_pos + found_idx_1, start_pos + found_idx_1 + len(cur_word)))
+                    pos_tags.append(spacy_token.pos_)
+                    dependencies.append(spacy_token.dep_)
                 else:
                     start_pos_2 = 0
                     for cur_subword in subwords:
@@ -444,7 +482,10 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                             )
                         )
                         start_pos_2 += (found_idx_2 + subword_len)
+                        pos_tags.append(spacy_token.pos_)
+                        dependencies.append(spacy_token.dep_)
                 start_pos += (found_idx_1 + len(cur_word))
+            del spacy_doc
             if len(tokenized_text) > (self.max_seq_length - 2):
                 tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
                 bounds_of_tokens_for_text = bounds_of_tokens_for_text[:(self.max_seq_length - 2)]
@@ -457,12 +498,28 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             all_tokenized_texts.append(copy.copy(tokenized_text))
             bounds_of_tokens.append(copy.deepcopy(bounds_of_tokens_for_text))
             tokenized_text = ['[CLS]'] + tokenized_text + ['[SEP]']
+            pos_tags = [''] + pos_tags + ['']
+            dependencies = [''] + dependencies + ['']
             token_IDs = self.tokenizer_.convert_tokens_to_ids(tokenized_text)
             for token_idx in range(len(token_IDs)):
                 X_tokenized[0][sample_idx][token_idx] = token_IDs[token_idx]
                 X_tokenized[1][sample_idx][token_idx] = 1
-                X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx])] = 1.0
-            del bounds_of_tokens_for_text, tokenized_text, token_IDs
+                if self.use_additional_features:
+                    X_tokenized[3][sample_idx][token_idx][self.get_subword_ID(tokenized_text[token_idx])] = 1.0
+                    pos_tag_id = self.universal_pos_tags_dict_.get(pos_tags[token_idx], -1)
+                    if pos_tag_id >= 0:
+                        X_tokenized[3][sample_idx][token_idx][pos_tag_id + 4] = 1.0
+                    elif len(pos_tags[token_idx]) > 0:
+                        raise ValueError('Part-of-speech tag `{0}` is unknown!'.format(pos_tags[token_idx]))
+                    ok = False
+                    for dependency_tag in prepare_dependency_tag(dependencies[token_idx]):
+                        dependency_id = self.universal_dependencies_dict_.get(dependency_tag, -1)
+                        if dependency_id >= 0:
+                            X_tokenized[3][sample_idx][token_idx][dependency_id + 4 + len(UNIVERSAL_POS_TAGS)] = 1.0
+                            ok = True
+                    if (not ok) and (len(dependencies[token_idx]) > 0):
+                        raise ValueError('Dependency tag `{0}` is unknown!'.format(dependencies[token_idx]))
+            del bounds_of_tokens_for_text, tokenized_text, token_IDs, pos_tags, dependencies
         if y is None:
             y_tokenized = None
         else:
@@ -501,7 +558,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 shapes_[sample_idx][token_idx + 1][shape_ID] = 1.0
             shape_ID = shapes_vocabulary_.index('[SEP]')
             shapes_[sample_idx][len(shapes[sample_idx]) + 1][shape_ID] = 1.0
-        X_tokenized[3] = np.concatenate((X_tokenized[3], shapes_), axis=-1)
+        if self.use_additional_features:
+            X_tokenized[3] = np.concatenate((X_tokenized[3], shapes_), axis=-1)
         del shapes_, shapes
         return X_tokenized, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_, \
                np.array(bounds_of_tokens, dtype=np.object)
@@ -511,7 +569,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 'lstm_units': self.lstm_units, 'batch_size': self.batch_size, 'max_seq_length': self.max_seq_length,
                 'lr': self.lr, 'l2_reg': self.l2_reg, 'clip_norm': self.clip_norm, 'max_epochs': self.max_epochs,
                 'patience': self.patience, 'validation_fraction': self.validation_fraction,
-                'gpu_memory_frac': self.gpu_memory_frac, 'verbose': self.verbose, 'random_seed': self.random_seed}
+                'gpu_memory_frac': self.gpu_memory_frac, 'verbose': self.verbose, 'random_seed': self.random_seed,
+                'udpipe_lang': self.udpipe_lang, 'use_additional_features': self.use_additional_features}
 
     def set_params(self, **params):
         for parameter, value in params.items():
@@ -526,7 +585,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
             l2_reg=self.l2_reg, clip_norm=self.clip_norm, validation_fraction=self.validation_fraction,
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
-            verbose=self.verbose, random_seed=self.random_seed
+            verbose=self.verbose, random_seed=self.random_seed, udpipe_lang=self.udpipe_lang,
+            use_additional_features=self.use_additional_features
         )
         try:
             self.is_fitted()
@@ -548,7 +608,8 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             lstm_units=self.lstm_units, batch_size=self.batch_size, max_seq_length=self.max_seq_length, lr=self.lr,
             l2_reg=self.l2_reg, clip_norm=self.clip_norm, validation_fraction=self.validation_fraction,
             max_epochs=self.max_epochs, patience=self.patience, gpu_memory_frac=self.gpu_memory_frac,
-            verbose=self.verbose, random_seed=self.random_seed
+            verbose=self.verbose, random_seed=self.random_seed, udpipe_lang=self.udpipe_lang,
+            use_additional_features=self.use_additional_features
         )
         try:
             self.is_fitted()
@@ -573,7 +634,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             self.random_seed = int(round(time.time()))
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
-        tf.compat.v1.random.set_random_seed(self.random_seed)
+        tf.random.set_random_seed(self.random_seed)
 
     def dump_all(self):
         try:
@@ -730,40 +791,54 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
             if self.verbose:
                 bert_ner_logger.info('The BERT model has been loaded from a local drive.')
-        additional_features = tf.placeholder(
-            shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4), dtype=tf.float32,
-            name='additional_features'
-        )
-        if self.verbose:
-            bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
+        if self.use_additional_features:
+            additional_features = tf.placeholder(
+                shape=(self.batch_size, self.max_seq_length, len(self.shapes_list_) + 4 + len(UNIVERSAL_POS_TAGS) +
+                       len(UNIVERSAL_DEPENDENCIES)), dtype=tf.float32,
+                name='additional_features'
+            )
+            if self.verbose:
+                bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
+        else:
+            additional_features = None
         n_tags = len(self.classes_list_) * 2 + 1
         he_init = tf.contrib.layers.variance_scaling_initializer(seed=self.random_seed)
         glorot_init = tf.keras.initializers.glorot_uniform(seed=self.random_seed)
         sequence_lengths = tf.reduce_sum(input_mask, axis=1)
         if self.lstm_units is None:
             if self.finetune_bert:
-                logits = tf.layers.dense(tf.concat([sequence_output, additional_features], axis=-1),
-                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                         kernel_initializer=he_init, name='outputs_of_NER')
+                logits = tf.layers.dense(
+                    (tf.concat([sequence_output, additional_features], axis=-1) if self.use_additional_features
+                     else sequence_output),
+                    n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                    kernel_initializer=he_init, name='outputs_of_NER')
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
-                logits = tf.layers.dense(tf.concat([sequence_output_stop, additional_features], axis=-1),
-                                         n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
-                                         kernel_initializer=he_init, name='outputs_of_NER')
+                logits = tf.layers.dense(
+                    (tf.concat([sequence_output_stop, additional_features], axis=-1) if self.use_additional_features
+                     else sequence_output_stop),
+                    n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
+                    kernel_initializer=he_init, name='outputs_of_NER')
         else:
             if self.finetune_bert:
                 with tf.name_scope('bilstm_layer'):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
                                                         recurrent_dropout=0.0, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(tf.concat([sequence_output, additional_features], axis=-1))
+                    if self.use_additional_features:
+                        rnn_output = rnn_layer(tf.concat([sequence_output, additional_features], axis=-1))
+                    else:
+                        rnn_output = rnn_layer(sequence_output)
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
                 with tf.name_scope('bilstm_layer'):
                     rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
                                                         recurrent_dropout=0.0, kernel_initializer=glorot_init)
                     rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
-                    rnn_output = rnn_layer(tf.concat([sequence_output_stop, additional_features], axis=-1))
+                    if self.use_additional_features:
+                        rnn_output = rnn_layer(tf.concat([sequence_output_stop, additional_features], axis=-1))
+                    else:
+                        rnn_output = rnn_layer(sequence_output_stop)
             logits = tf.layers.dense(rnn_output, n_tags, activation=None, kernel_regularizer=tf.nn.l2_loss,
                                      kernel_initializer=he_init, name='outputs_of_NER')
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths)
@@ -841,8 +916,6 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             return False
         if not os.path.isfile(os.path.join(dir_name, 'bert_model.ckpt.index')):
             return False
-        if not os.path.isfile(os.path.join(dir_name, 'bert_model.ckpt.meta')):
-            return False
         if not os.path.isfile(os.path.join(dir_name, 'bert_config.json')):
             return False
         return True
@@ -902,6 +975,13 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                     type('abc'), type(kwargs['bert_hub_module_handle'])))
             if len(kwargs['bert_hub_module_handle']) < 1:
                 raise ValueError('`bert_hub_module_handle` is wrong! Expected a nonepty string.')
+        if 'udpipe_lang' not in kwargs:
+            raise ValueError('`udpipe_lang` is not specified!')
+        if not isinstance(kwargs['udpipe_lang'], str):
+            raise ValueError('`udpipe_lang` is wrong! Expected `{0}`, got `{1}`.'.format(
+                type('abc'), type(kwargs['udpipe_lang'])))
+        if len(kwargs['udpipe_lang']) < 1:
+            raise ValueError('`udpipe_lang` is wrong! Expected a nonepty string.')
         if 'finetune_bert' not in kwargs:
             raise ValueError('`finetune_bert` is not specified!')
         if (not isinstance(kwargs['finetune_bert'], int)) and (not isinstance(kwargs['finetune_bert'], np.int32)) and \
@@ -974,6 +1054,15 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 (not isinstance(kwargs['verbose'], bool)) and (not isinstance(kwargs['verbose'], np.bool)):
             raise ValueError('`verbose` is wrong! Expected `{0}`, got `{1}`.'.format(
                 type(True), type(kwargs['verbose'])))
+        if 'use_additional_features' not in kwargs:
+            raise ValueError('`use_additional_features` is not specified!')
+        if (not isinstance(kwargs['use_additional_features'], int)) and \
+                (not isinstance(kwargs['use_additional_features'], np.int32)) and \
+                (not isinstance(kwargs['use_additional_features'], np.uint32)) and \
+                (not isinstance(kwargs['use_additional_features'], bool)) and \
+                (not isinstance(kwargs['use_additional_features'], np.bool)):
+            raise ValueError('`use_additional_features` is wrong! Expected `{0}`, got `{1}`.'.format(
+                type(True), type(kwargs['use_additional_features'])))
 
     @staticmethod
     def calculate_bounds_of_named_entities(bounds_of_tokens: List[Tuple[int, int]], classes_list: tuple,
