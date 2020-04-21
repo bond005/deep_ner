@@ -17,7 +17,7 @@ For installation you need to Python 3.6 or later. To install this project on you
 ```
 git clone https://github.com/bond005/deep_ner.git
 cd deep_ner
-sudo python setup.py install
+pip install .
 ```
 
 If you want to install the **Deep-NER** into a some virtual environment, than you don't need to use `sudo`, but before installing you have to activate this virtual environment (for example, using `source /path/to/your/python/environment/bin/activate` in the command prompt).
@@ -28,16 +28,30 @@ You can also run the tests
 python setup.py test
 ```
 
+Also, you can install the **Deep-NER** from the [PyPi](https://pypi.org/project/deep-ner) using the following command:
+
+```
+pip install deep-ner
+```
 
 Usage
 -----
 
 
-After installing the **Deep-NER** can be used as Python package in your projects. It includes two variants of NER: the **ELMo-NER** and the **BERT-NER**. You can create new named entity recognizer using the [Multilingual BERT](https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1) as follows:
+After installing the **Deep-NER** can be used as Python package in your projects. It includes two variants of NER: the **ELMo-NER** and the **BERT-NER**. Distributional semantics methods, based on the deep learning (BERT or ELMo), are used for semantic features extraction from some text, after that [**C**onditional **R**andom **F**ields (CRF)](https://homepages.inf.ed.ac.uk/csutton/publications/crftut-fnt.pdf) or their combinations with [**L**ong **S**hort **T**erm **M**emory networks (LSTM)](https://arxiv.org/abs/1508.01991) do the final classification of named entities in this text. Also, special linguistic information about tokens in the text can be used in addition to the distributional semantics, namely:
+
+1) token shapes, which indicate the orphographic information (see [Finkel et al., 2005](https://nlp.stanford.edu/pubs/finkel2005boundaries.pdf));
+2) part-of-speech tags, which represent the morphology of the specified language (the composition of these tags corresponds to the [Universal POS tags](http://universaldependencies.org/docs/u/pos/index.html));
+3) structure of syntactic dependency tree, which is described using with [Universal Dependency Relations](https://universaldependencies.org/u/dep/).
+
+
+You can create new named entity recognizer using the [cased English BERT](https://tfhub.dev/tensorflow/bert_en_cased_L-12_H-768_A-12/1) as follows:
 
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
-ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', validation_fraction=0.0)  # create new named entity recognizer for English language
+ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
+               udpipe_lang='en', use_additional_features = True,
+               validation_fraction=0.0)  # create new named entity recognizer for English language with BERT and additional features
 ```
 
 If you want to use some special finetuned BERT, located on your disk, then you have to set path to the BERT directory in special variable (a Python class attribute) `BERT_NER.PATH_TO_BERT`. For example:
@@ -45,7 +59,7 @@ If you want to use some special finetuned BERT, located on your disk, then you h
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
 BERT_NER.PATH_TO_BERT = '/path/to/the/unpacked/BERT'
-ner = BERT_NER(validation_fraction=0.0)  # create new named entity recognizer using this BERT
+ner = BERT_NER(validation_fraction=0.0, udpipe_lang='en')  # create new named entity recognizer using this BERT
 ```
 
 **Important note**: name of directory with unpacked files of your BERT model must contain such subphrases as `cased` or `uncased` (for example, `cased_L-12_H-768_A-12`, `rubert_uncased_L-24_H-768_A-24` and the like). Presence of `cased` substring implies that the true case of processed texts is preserved, and occurrence of `uncased` substring is corresponded to processing of texts in lower-case only.
@@ -56,7 +70,7 @@ For building of NER based on the ELMo model you have to import another module an
 
 ```
 from deep_ner.elmo_ner import ELMo_NER  # import the ELMo-NER module
-ner = ELMo_NER(elmo_hub_module_handle='https://tfhub.dev/google/elmo/3')  # create new named entity recognizer for English language
+ner = ELMo_NER(elmo_hub_module_handle='https://tfhub.dev/google/elmo/3', udpipe_lang='en')  # create new named entity recognizer for English language
 ```
 
 Pre-trained ELMo for Russian language as customary TFHub module are granted by the iPavlov project: http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-news_wmt11-16_1.5M_steps.tar.gz
@@ -65,7 +79,7 @@ A neural network architecture of the **Deep-NER** consists of a deep pre-trained
 
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
-ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', lstm_units=256, validation_fraction=0.0)  # create new BERT-NER with BiLSTM-CRF head instead of simple CRF head
+ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1', lstm_units=256, validation_fraction=0.0, udpipe_lang='en')  # create new BERT-NER with BiLSTM-CRF head instead of simple CRF head
 ```
 
 
@@ -161,6 +175,12 @@ You have to use short texts such as sentences or small paragraphs, because long 
 For solving of above-mentioned problem you can split long texts by shorter sentences using well-known NLP libraries such as [NLTK](http://www.nltk.org/api/nltk.tokenize.html?highlight=sent_tokenize#nltk.tokenize.sent_tokenize) or [SpaCy](https://spacy.io/api/token#is_sent_start). Also, for splitting of long texts together with their manual annotations you can use the special function `divide_dataset_by_sentences` from the `utils` module of this package.
 
 
+#### Note 3
+
+
+A neural base (BERT or ELMo) can be tuned together with a CRF-based (or LSTM-CRF-based) neural head, or the neural base can be frozen, i.e. it is used as feature extractor only. The special argument of the constructor, named as `finetune_bert` for BERT and `finetune_elmo` for ELMo, specifies a corresponding mode. About tuning and freezing, you can read [an interesting paper, written by Sebastian Ruder and his colleagues](https://arxiv.org/abs/1903.05987).
+
+
 Demo
 ----
 
@@ -238,6 +258,9 @@ Internal structure of the results file, generated after completion of the demo s
 
 Breaking Changes
 -----
+
+**Breaking changes in version 0.0.4**
+- List of additional features has been expanded(morphological and syntactical features have been added, besides word shapes, i.e. orphographic features). Also, you have gotten possibility to enable/disable these additional features by the constructor parameter. 
 
 **Breaking changes in version 0.0.3**
 - a little misprint in the setup.py has been fixed.
