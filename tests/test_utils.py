@@ -12,6 +12,7 @@ try:
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
     from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, get_bio_label_of_token
     from deep_ner.utils import divide_dataset_by_sentences
+    from deep_ner.utils import normalize_text
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.utils import load_dataset_from_json, load_dataset_from_brat
@@ -19,6 +20,7 @@ except:
     from deep_ner.utils import load_tokens_from_factrueval2016_by_sentences
     from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, get_bio_label_of_token
     from deep_ner.utils import divide_dataset_by_sentences
+    from deep_ner.utils import normalize_text
 
 
 class TestUtils(unittest.TestCase):
@@ -1950,6 +1952,18 @@ class TestUtils(unittest.TestCase):
             for ne_type in sorted(list(y_true[sample_idx].keys())):
                 self.assertIsInstance(y_pred[sample_idx][ne_type], list)
                 self.assertEqual(y_true[sample_idx][ne_type], y_pred[sample_idx][ne_type])
+
+    def test_normalize_text_1(self):
+        s = '2016 год — 12 498\t 096,80  рублей;'
+        true_normalized = '2016 год - 12 498  096,80  рублей;'
+        predicted_normalized = normalize_text(s)
+        self.assertEqual(true_normalized, predicted_normalized)
+
+    def test_normalize_text_2(self):
+        s = 'В 1911–1912 годах журналы «Киевская неделя» и «Лукоморье» опубликовали первые рассказы Вертинского'
+        true_normalized = 'В 1911-1912 годах журналы «Киевская неделя» и «Лукоморье» опубликовали первые рассказы Вертинского'
+        predicted_normalized = normalize_text(s)
+        self.assertEqual(true_normalized, predicted_normalized)
 
 
 if __name__ == '__main__':

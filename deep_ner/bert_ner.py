@@ -18,6 +18,7 @@ from bert.modeling import BertModel, BertConfig, get_assignment_map_from_checkpo
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
 from .udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS, create_udpipe_pipeline, prepare_dependency_tag
+from .utils import normalize_text
 
 
 tf.logging.set_verbosity(tf.logging.ERROR)
@@ -448,48 +449,59 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             start_pos = 0
             if not hasattr(self, 'nlp_'):
                 self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
-            spacy_doc = self.nlp_(source_text)
+            normalized_text = normalize_text(source_text)
+            spacy_doc = self.nlp_(normalized_text)
             pos_tags = []
             dependencies = []
             for spacy_token in spacy_doc:
                 cur_word = spacy_token.text
-                found_idx_1 = source_text[start_pos:].find(cur_word)
-                if found_idx_1 < 0:
+                parts_of_cur_word = list(filter(
+                    lambda it2: len(it2) > 0,
+                    map(lambda it1: it1.strip(), cur_word.split())
+                ))
+                if len(parts_of_cur_word) == 0:
                     raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
-                cur_word_ = cur_word.lower() if self.tokenizer_.basic_tokenizer.do_lower_case else cur_word
-                subwords = self.tokenizer_.tokenize(cur_word_)
-                if '[UNK]' in subwords:
-                    tokenized_text.append('[UNK]')
-                    bounds_of_tokens_for_text.append((start_pos + found_idx_1, start_pos + found_idx_1 + len(cur_word)))
-                    pos_tags.append(spacy_token.pos_)
-                    dependencies.append(spacy_token.dep_)
-                else:
-                    start_pos_2 = 0
-                    for cur_subword in subwords:
-                        if cur_subword.startswith('##'):
-                            subword_len = len(cur_subword) - 2
-                            found_idx_2 = cur_word_[start_pos_2:].find(cur_subword[2:])
-                        else:
-                            subword_len = len(cur_subword)
-                            found_idx_2 = cur_word_[start_pos_2:].find(cur_subword)
-                        if found_idx_2 < 0:
-                            raise ValueError('Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
-                        tokenized_text.append(cur_subword)
-                        bounds_of_tokens_for_text.append(
-                            (
-                                start_pos + found_idx_1 + start_pos_2 + found_idx_2,
-                                start_pos + found_idx_1 + start_pos_2 + found_idx_2 + subword_len
-                            )
-                        )
-                        start_pos_2 += (found_idx_2 + subword_len)
+                for cur_word_part in parts_of_cur_word:
+                    found_idx_1 = normalized_text[start_pos:].find(cur_word_part)
+                    if found_idx_1 < 0:
+                        raise ValueError(
+                            'Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
+                    cur_word_ = cur_word_part.lower() if self.tokenizer_.basic_tokenizer.do_lower_case else cur_word_part
+                    subwords = self.tokenizer_.tokenize(cur_word_)
+                    if '[UNK]' in subwords:
+                        tokenized_text.append('[UNK]')
+                        bounds_of_tokens_for_text.append((start_pos + found_idx_1,
+                                                          start_pos + found_idx_1 + len(cur_word_part)))
                         pos_tags.append(spacy_token.pos_)
                         dependencies.append(spacy_token.dep_)
-                start_pos += (found_idx_1 + len(cur_word))
+                    else:
+                        start_pos_2 = 0
+                        for cur_subword in subwords:
+                            if cur_subword.startswith('##'):
+                                subword_len = len(cur_subword) - 2
+                                found_idx_2 = cur_word_[start_pos_2:].find(cur_subword[2:])
+                            else:
+                                subword_len = len(cur_subword)
+                                found_idx_2 = cur_word_[start_pos_2:].find(cur_subword)
+                            if found_idx_2 < 0:
+                                raise ValueError(
+                                    'Text `{0}` cannot be tokenized!'.format(X[sample_idx]))
+                            tokenized_text.append(cur_subword)
+                            bounds_of_tokens_for_text.append(
+                                (
+                                    start_pos + found_idx_1 + start_pos_2 + found_idx_2,
+                                    start_pos + found_idx_1 + start_pos_2 + found_idx_2 + subword_len
+                                )
+                            )
+                            start_pos_2 += (found_idx_2 + subword_len)
+                            pos_tags.append(spacy_token.pos_)
+                            dependencies.append(spacy_token.dep_)
+                    start_pos += (found_idx_1 + len(cur_word_part))
             del spacy_doc
             if len(tokenized_text) > (self.max_seq_length - 2):
                 tokenized_text = tokenized_text[:(self.max_seq_length - 2)]
                 bounds_of_tokens_for_text = bounds_of_tokens_for_text[:(self.max_seq_length - 2)]
-            shapes_of_text = [self.get_shape_of_string(source_text[cur[0]:cur[1]]) for cur in bounds_of_tokens_for_text]
+            shapes_of_text = [self.get_shape_of_string(normalized_text[cur[0]:cur[1]]) for cur in bounds_of_tokens_for_text]
             if shapes_vocabulary is None:
                 for cur_shape in shapes_of_text:
                     if cur_shape != '[UNK]':
@@ -526,10 +538,11 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             y_tokenized = np.empty((len(y), self.max_seq_length), dtype=np.int32)
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
+                normalized_text = normalize_text(source_text)
                 tokenized_text = all_tokenized_texts[sample_idx]
                 bounds_of_tokens_for_text = bounds_of_tokens[sample_idx]
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
-                    source_text, self.classes_list_, y[sample_idx])
+                    normalized_text, self.classes_list_, y[sample_idx])
                 y_tokenized[sample_idx] = self.detect_token_labels(
                     tokenized_text, bounds_of_tokens_for_text, indices_of_named_entities, labels_IDs,
                     self.max_seq_length
