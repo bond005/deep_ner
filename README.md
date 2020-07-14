@@ -259,6 +259,9 @@ Internal structure of the results file, generated after completion of the demo s
 Breaking Changes
 -----
 
+**Breaking changes in version 0.0.5**
+- Tokenization bug in **BERT_NER** and **ELMo_NER** has been fixed.
+
 **Breaking changes in version 0.0.4**
 - List of additional features has been expanded(morphological and syntactical features have been added, besides word shapes, i.e. orphographic features). Also, you have gotten possibility to enable/disable these additional features by the constructor parameter. 
 

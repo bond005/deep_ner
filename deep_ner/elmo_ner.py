@@ -169,7 +169,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                         n_tokens = len(labels_in_text)
                         tokens = X_val_tokenized[0][sample_idx][:n_tokens]
-                        bounds_of_tokens = self.calculate_bounds_of_tokens(X_val_[sample_idx], tokens)
+                        normalized_ = normalize_text(X_val_[sample_idx])
+                        bounds_of_tokens = self.calculate_bounds_of_tokens(normalized_, tokens)
                         new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
                                                                                labels_in_text)
                         pred_entities_val.append(new_entities)
@@ -244,7 +245,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
                             n_tokens = len(labels_in_text)
                             tokens = X_val_tokenized[0][sample_idx][:n_tokens]
-                            bounds_of_tokens = self.calculate_bounds_of_tokens(X_val_[sample_idx], tokens)
+                            normalized_ = normalize_text(X_val_[sample_idx])
+                            bounds_of_tokens = self.calculate_bounds_of_tokens(normalized_, tokens)
                             new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_,
                                                                                    labels_in_text)
                             pred_entities_val.append(new_entities)
@@ -294,7 +296,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         for sample_idx, labels_in_text in enumerate(y_pred[0:n_samples]):
             n_tokens = len(labels_in_text)
             tokens = X_tokenized[0][sample_idx][:n_tokens]
-            bounds_of_tokens = self.calculate_bounds_of_tokens(X[sample_idx], tokens)
+            normalized_ = normalize_text(X[sample_idx])
+            bounds_of_tokens = self.calculate_bounds_of_tokens(normalized_, tokens)
             new_entities = self.calculate_bounds_of_named_entities(bounds_of_tokens, self.classes_list_, labels_in_text)
             recognized_entities_in_texts.append(new_entities)
         return recognized_entities_in_texts
