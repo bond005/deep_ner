@@ -16,6 +16,7 @@ import tensorflow_hub as tfhub
 from .quality import calculate_prediction_quality
 from .dataset_splitting import split_dataset
 from .udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS, create_udpipe_pipeline, prepare_dependency_tag
+from .utils import normalize_text
 
 
 tf.logging.set_verbosity(tf.logging.ERROR)
@@ -384,16 +385,22 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         if y is None:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
+                normalized_text = normalize_text(source_text)
                 if not hasattr(self, 'nlp_'):
                     self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
-                spacy_doc = self.nlp_(source_text)
+                spacy_doc = self.nlp_(normalized_text)
                 tokenized_text = []
                 pos_tags = []
                 dependencies = []
                 for spacy_token in spacy_doc:
-                    tokenized_text.append(spacy_token.text)
-                    pos_tags.append(spacy_token.pos_)
-                    dependencies.append(spacy_token.dep_)
+                    parts_of_token = list(filter(
+                        lambda it2: len(it2) > 0,
+                        map(lambda it1: it1.strip(), spacy_token.text.split())
+                    ))
+                    for token_part in parts_of_token:
+                        tokenized_text.append(token_part)
+                        pos_tags.append(spacy_token.pos_)
+                        dependencies.append(spacy_token.dep_)
                 del spacy_doc
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
@@ -419,25 +426,31 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
+                normalized_text = normalize_text(source_text)
                 if not hasattr(self, 'nlp_'):
                     self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
-                spacy_doc = self.nlp_(source_text)
+                spacy_doc = self.nlp_(normalized_text)
                 tokenized_text = []
                 pos_tags = []
                 dependencies = []
                 for spacy_token in spacy_doc:
-                    tokenized_text.append(spacy_token.text)
-                    pos_tags.append(spacy_token.pos_)
-                    dependencies.append(spacy_token.dep_)
+                    parts_of_token = list(filter(
+                        lambda it2: len(it2) > 0,
+                        map(lambda it1: it1.strip(), spacy_token.text.split())
+                    ))
+                    for token_part in parts_of_token:
+                        tokenized_text.append(token_part)
+                        pos_tags.append(spacy_token.pos_)
+                        dependencies.append(spacy_token.dep_)
                 del spacy_doc
                 shapes_of_text = [self.get_shape_of_string(cur) for cur in tokenized_text]
                 if shapes_vocabulary is None:
                     for cur_shape in shapes_of_text:
                         if cur_shape != '':
                             shapes_dict[cur_shape] = shapes_dict.get(cur_shape, 0) + 1
-                bounds_of_tokens = self.calculate_bounds_of_tokens(source_text, tokenized_text)
+                bounds_of_tokens = self.calculate_bounds_of_tokens(normalized_text, tokenized_text)
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
-                    source_text, self.classes_list_, y[sample_idx])
+                    normalized_text, self.classes_list_, y[sample_idx])
                 y_tokenized[sample_idx] = self.detect_token_labels(
                     bounds_of_tokens, indices_of_named_entities, labels_IDs, self.max_seq_length
                 )

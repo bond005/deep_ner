@@ -2027,5 +2027,19 @@
                 ]
             ]
         }
+    },
+    {
+        "paragraph_bounds": [
+            [
+                0,
+                34
+            ]
+        ],
+        "text": "2016 год — 12 498  096,80  рублей;",
+        "named_entities": {
+            "PERSON": [],
+            "ORG": [],
+            "LOCATION": []
+        }
     }
 ]

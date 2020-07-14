@@ -3,6 +3,7 @@ import copy
 import json
 from logging import Logger
 import os
+import re
 from typing import Dict, Tuple, List, Union, Set
 import warnings
 
@@ -1166,3 +1167,14 @@ def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, 
     elif isinstance(y, np.ndarray):
         y_new = np.array(y_new, dtype=object)
     return X_new, y_new
+
+
+def normalize_text(s: str) -> str:
+    dashes = ['\u2014', '\u2013', '\u2012', '\u2011', '\u2010', '\uFE63', '\uFF0D',
+              '\u2043', '\u058A', '\u1806']
+    s_ = s.replace(dashes[0], '-')
+    for cur in dashes[1:]:
+        s_ = s_.replace(cur, '-')
+    re_for_space = re.compile(r'\s')
+    s_ = re_for_space.sub(' ', s_)
+    return s_
