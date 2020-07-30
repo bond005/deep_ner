@@ -44,7 +44,8 @@ class TestELMoNER(unittest.TestCase):
         self.ner = ELMo_NER(elmo_hub_module_handle=self.ELMO_HUB_MODULE, udpipe_lang='ru')
         self.assertIsInstance(self.ner, ELMo_NER)
         self.assertTrue(hasattr(self.ner, 'udpipe_lang'))
-        self.assertTrue(hasattr(self.ner, 'use_additional_features'))
+        self.assertTrue(hasattr(self.ner, 'use_shapes'))
+        self.assertTrue(hasattr(self.ner, 'use_nlp_features'))
         self.assertTrue(hasattr(self.ner, 'batch_size'))
         self.assertTrue(hasattr(self.ner, 'lr'))
         self.assertTrue(hasattr(self.ner, 'l2_reg'))
@@ -69,13 +70,14 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(self.ner.max_seq_length, int)
         self.assertIsInstance(self.ner.validation_fraction, float)
         self.assertIsInstance(self.ner.verbose, bool)
-        self.assertIsInstance(self.ner.use_additional_features, bool)
+        self.assertIsInstance(self.ner.use_shapes, bool)
+        self.assertIsInstance(self.ner.use_nlp_features, bool)
 
     def test_check_params_positive(self):
         ELMo_NER.check_params(
             elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3,
             l2_reg=1e-4, validation_fraction=0.0, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-            random_seed=42, use_additional_features=True, udpipe_lang='en'
+            random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
         )
         self.assertTrue(True)
 
@@ -85,7 +87,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1,
                 max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=True, use_nlp_features=False, udpipe_lang='en'
             )
 
     def test_check_params_negative002(self):
@@ -95,7 +97,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=1, finetune_elmo=True, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=False, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative003(self):
@@ -104,7 +106,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, max_seq_length=512, lr=1e-3,
                 l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative004(self):
@@ -114,7 +116,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size='32', max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative005(self):
@@ -123,7 +125,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=-3, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative006(self):
@@ -132,7 +134,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative007(self):
@@ -142,7 +144,8 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs='10', patience=3,
-                gpu_memory_frac=1.0, verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                gpu_memory_frac=1.0, verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True,
+                udpipe_lang='en'
             )
 
     def test_check_params_negative008(self):
@@ -151,7 +154,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=-3, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative009(self):
@@ -160,7 +163,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative010(self):
@@ -170,7 +173,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience='3', gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative011(self):
@@ -179,7 +182,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=-3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative012(self):
@@ -189,7 +192,7 @@ class TestELMoNER(unittest.TestCase):
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE,
                 finetune_elmo=True, batch_size=32, lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10,
                 patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative013(self):
@@ -199,7 +202,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length='512',
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative014(self):
@@ -209,7 +212,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=-3,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative015(self):
@@ -218,7 +221,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative016(self):
@@ -228,7 +231,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction='0.1', max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative017(self):
@@ -238,7 +241,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=-0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative018(self):
@@ -248,7 +251,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=1.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative019(self):
@@ -257,7 +260,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative020(self):
@@ -267,7 +270,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac='1.0',
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative021(self):
@@ -277,7 +280,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=-1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative022(self):
@@ -287,7 +290,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.3,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative023(self):
@@ -296,7 +299,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative024(self):
@@ -306,7 +309,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr='1e-3', l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative025(self):
@@ -316,7 +319,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=0.0, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative026(self):
@@ -325,7 +328,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative027(self):
@@ -335,7 +338,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr='1e-3', l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative028(self):
@@ -345,7 +348,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=0.0, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative029(self):
@@ -354,7 +357,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative030(self):
@@ -364,7 +367,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg='1e-4', validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative031(self):
@@ -374,7 +377,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=-2.0, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative032(self):
@@ -383,7 +386,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, batch_size=32, max_seq_length=512, lr=1e-3, l2_reg=1e-4,
                 validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0, verbose=False, random_seed=42,
-                use_additional_features=True, udpipe_lang='en'
+                use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative033(self):
@@ -393,7 +396,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo='True', batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose=False, random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose=False, random_seed=42, use_shapes=True, use_nlp_features=True, udpipe_lang='en'
             )
 
     def test_check_params_negative034(self):
@@ -402,7 +405,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                random_seed=42, use_additional_features=True, udpipe_lang='en'
+                random_seed=42, use_shapes=True, use_nlp_features=False, udpipe_lang='en'
             )
 
     def test_check_params_negative035(self):
@@ -412,7 +415,7 @@ class TestELMoNER(unittest.TestCase):
             ELMo_NER.check_params(
                 elmo_hub_module_handle=self.ELMO_HUB_MODULE, finetune_elmo=True, batch_size=32, max_seq_length=512,
                 lr=1e-3, l2_reg=1e-4, validation_fraction=0.1, max_epochs=10, patience=3, gpu_memory_frac=1.0,
-                verbose='False', random_seed=42, use_additional_features=True, udpipe_lang='en'
+                verbose='False', random_seed=42, use_shapes=False, use_nlp_features=False, udpipe_lang='en'
             )
 
     def test_check_X_positive(self):
@@ -907,12 +910,13 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE,
-                            udpipe_lang='ru', use_additional_features=False)
+                            udpipe_lang='ru', use_shapes=False, use_nlp_features=False)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
-        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertTrue(hasattr(res, 'use_shapes'))
+        self.assertTrue(hasattr(res, 'use_nlp_features'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
@@ -926,7 +930,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.udpipe_lang, str)
-        self.assertIsInstance(res.use_additional_features, bool)
+        self.assertIsInstance(res.use_shapes, bool)
+        self.assertIsInstance(res.use_nlp_features, bool)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
@@ -954,12 +959,13 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=True, max_epochs=3, batch_size=2, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=42, elmo_hub_module_handle=self.ELMO_HUB_MODULE,
-                            udpipe_lang='ru', use_additional_features=True)
+                            udpipe_lang='ru', use_shapes=True, use_nlp_features=True)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
-        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertTrue(hasattr(res, 'use_shapes'))
+        self.assertTrue(hasattr(res, 'use_nlp_features'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
@@ -973,7 +979,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.udpipe_lang, str)
-        self.assertIsInstance(res.use_additional_features, bool)
+        self.assertIsInstance(res.use_shapes, bool)
+        self.assertIsInstance(res.use_nlp_features, bool)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
@@ -1004,12 +1011,13 @@ class TestELMoNER(unittest.TestCase):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         self.ner = ELMo_NER(finetune_elmo=False, max_epochs=3, batch_size=4, max_seq_length=64, gpu_memory_frac=0.9,
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE,
-                            udpipe_lang='ru')
+                            udpipe_lang='ru', use_shapes=False, use_nlp_features=True)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
-        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertTrue(hasattr(res, 'use_shapes'))
+        self.assertTrue(hasattr(res, 'use_nlp_features'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
@@ -1023,7 +1031,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.udpipe_lang, str)
-        self.assertIsInstance(res.use_additional_features, bool)
+        self.assertIsInstance(res.use_shapes, bool)
+        self.assertIsInstance(res.use_nlp_features, bool)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
@@ -1058,7 +1067,8 @@ class TestELMoNER(unittest.TestCase):
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
-        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertTrue(hasattr(res, 'use_shapes'))
+        self.assertTrue(hasattr(res, 'use_nlp_features'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
@@ -1072,7 +1082,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.udpipe_lang, str)
-        self.assertIsInstance(res.use_additional_features, bool)
+        self.assertIsInstance(res.use_shapes, bool)
+        self.assertIsInstance(res.use_nlp_features, bool)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
@@ -1124,7 +1135,8 @@ class TestELMoNER(unittest.TestCase):
         res = self.ner.fit(X_train, y_train)
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
-        self.assertTrue(hasattr(res, 'use_additional_features'))
+        self.assertTrue(hasattr(res, 'use_shapes'))
+        self.assertTrue(hasattr(res, 'use_nlp_features'))
         self.assertTrue(hasattr(res, 'batch_size'))
         self.assertTrue(hasattr(res, 'lr'))
         self.assertTrue(hasattr(res, 'l2_reg'))
@@ -1138,7 +1150,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(res, 'validation_fraction'))
         self.assertTrue(hasattr(res, 'verbose'))
         self.assertIsInstance(res.udpipe_lang, str)
-        self.assertIsInstance(res.use_additional_features, bool)
+        self.assertIsInstance(res.use_shapes, bool)
+        self.assertIsInstance(res.use_nlp_features, bool)
         self.assertIsInstance(res.batch_size, int)
         self.assertIsInstance(res.lr, float)
         self.assertIsInstance(res.l2_reg, float)
@@ -1278,7 +1291,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(self.another_ner, ELMo_NER)
         self.assertIsNot(self.ner, self.another_ner)
         self.assertTrue(hasattr(self.another_ner, 'udpipe_lang'))
-        self.assertTrue(hasattr(self.another_ner, 'use_additional_features'))
+        self.assertTrue(hasattr(self.another_ner, 'use_shapes'))
+        self.assertTrue(hasattr(self.another_ner, 'use_nlp_features'))
         self.assertTrue(hasattr(self.another_ner, 'batch_size'))
         self.assertTrue(hasattr(self.another_ner, 'lr'))
         self.assertTrue(hasattr(self.another_ner, 'l2_reg'))
@@ -1295,7 +1309,8 @@ class TestELMoNER(unittest.TestCase):
         self.assertTrue(hasattr(self.another_ner, 'shapes_list_'))
         self.assertTrue(hasattr(self.another_ner, 'sess_'))
         self.assertEqual(self.ner.udpipe_lang, self.another_ner.udpipe_lang)
-        self.assertEqual(self.ner.use_additional_features, self.another_ner.use_additional_features)
+        self.assertEqual(self.ner.use_shapes, self.another_ner.use_shapes)
+        self.assertEqual(self.ner.use_nlp_features, self.another_ner.use_nlp_features)
         self.assertEqual(self.ner.batch_size, self.another_ner.batch_size)
         self.assertAlmostEqual(self.ner.lr, self.another_ner.lr)
         self.assertAlmostEqual(self.ner.l2_reg, self.another_ner.l2_reg)

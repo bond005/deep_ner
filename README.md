@@ -44,13 +44,14 @@ After installing the **Deep-NER** can be used as Python package in your projects
 2) part-of-speech tags, which represent the morphology of the specified language (the composition of these tags corresponds to the [Universal POS tags](http://universaldependencies.org/docs/u/pos/index.html));
 3) structure of syntactic dependency tree, which is described using with [Universal Dependency Relations](https://universaldependencies.org/u/dep/).
 
+Adding of token shapes is specified by the `use_shapes` parameter, and adding of morphological and syntactical information to the token feature vector is determined by the `use_nlp_features` parameter.
 
 You can create new named entity recognizer using the [cased English BERT](https://tfhub.dev/tensorflow/bert_en_cased_L-12_H-768_A-12/1) as follows:
 
 ```
 from deep_ner.bert_ner import BERT_NER  # import the BERT-NER module
 ner = BERT_NER(bert_hub_module_handle='https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1',
-               udpipe_lang='en', use_additional_features = True,
+               udpipe_lang='en', use_shapes = True, use_nlp_features = True,
                validation_fraction=0.0)  # create new named entity recognizer for English language with BERT and additional features
 ```
 
@@ -259,11 +260,14 @@ Internal structure of the results file, generated after completion of the demo s
 Breaking Changes
 -----
 
+**Breaking changes in version 0.0.6**
+- The NLP features, based on morphology and syntaxis, have been separated from simple orphographic features, i.e. token shapes. Now token shapes are included using the `use_shapes` parameter, and "classical" linguistics can be included using the `use_nlp_features` parameter.
+
 **Breaking changes in version 0.0.5**
 - Tokenization bug in **BERT_NER** and **ELMo_NER** has been fixed.
 
 **Breaking changes in version 0.0.4**
-- List of additional features has been expanded(morphological and syntactical features have been added, besides word shapes, i.e. orphographic features). Also, you have gotten possibility to enable/disable these additional features by the constructor parameter. 
+- List of additional features has been expanded (morphological and syntactical features have been added, besides word shapes, i.e. orphographic features). Also, you have gotten possibility to enable/disable these additional features by the constructor parameter. 
 
 **Breaking changes in version 0.0.3**
 - a little misprint in the setup.py has been fixed.
