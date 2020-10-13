@@ -108,7 +108,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         else:
             X_val_tokenized = None
             y_val_tokenized = None
-        if self.verbose:
+        if self.verbose and self.use_shapes:
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
         train_op, log_likelihood, logits_, transition_params_ = self.build_model()
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))

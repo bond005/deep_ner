@@ -821,7 +821,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                 shape=(self.batch_size, self.max_seq_length, n_additional_features), dtype=tf.float32,
                 name='additional_features'
             )
-            if self.verbose:
+            if self.verbose and self.use_shapes:
                 bert_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
         else:
             additional_features = None
