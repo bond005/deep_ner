@@ -71,3 +71,45 @@ def split_dataset(y: Union[list, tuple, np.array], test_part: float, n_restarts:
             train_index = best_indices[0:n_train]
             test_index = best_indices[n_train:]
     return np.sort(train_index), np.sort(test_index)
+
+
+def sample_from_dataset(y: Union[list, tuple, np.array], n: int, n_restarts: int=10,
+                        logger: Union[Logger, None]=None) -> np.ndarray:
+    if n < 1:
+        raise ValueError('{0} is wrong size of sampled dataset. It must be greater than 0.'.format(n))
+    n_samples = len(y)
+    if n_samples < 2:
+        raise ValueError('There are too few samples in the data set! Minimal number of samples is 2.')
+    if n_restarts < 2:
+        raise ValueError('{0} is too small value of restarts number. It must be greater than 1.'.format(n_restarts))
+    if n >= n_samples:
+        return np.array(list(range(n_samples)), dtype=np.int32)
+    indices = np.arange(0, n_samples, 1, dtype=np.int32)
+    np.random.shuffle(indices)
+    total_set_of_classes = set()
+    subset_of_classes = set()
+    for idx in indices[0:n]:
+        subset_of_classes |= set(y[idx].keys())
+    for idx in indices:
+        total_set_of_classes |= set(y[idx].keys())
+    if total_set_of_classes == subset_of_classes:
+        subset_index = indices[0:n]
+    else:
+        best_indices = None
+        for restart in range(1, n_restarts):
+            np.random.shuffle(indices)
+            subset_of_classes = set()
+            for idx in indices[0:n]:
+                subset_of_classes |= set(y[idx].keys())
+            if total_set_of_classes == subset_of_classes:
+                best_indices = np.copy(indices)
+                break
+        if best_indices is None:
+            if logger is None:
+                warnings.warn('Data set cannot be splitted by stratified folds.')
+            else:
+                logger.warning('Data set cannot be splitted by stratified folds.')
+            subset_index = indices[0:n]
+        else:
+            subset_index = best_indices[0:n]
+    return np.sort(subset_index)

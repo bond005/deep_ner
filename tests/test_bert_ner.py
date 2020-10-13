@@ -13,18 +13,22 @@ from spacy_udpipe.language import UDPipeLanguage
 
 try:
     from deep_ner.bert_ner import BERT_NER
-    from deep_ner.utils import load_dataset_from_json
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.bert_ner import BERT_NER
-    from deep_ner.utils import load_dataset_from_json
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 
 
 class TestBertNer(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        set_total_seed(0)
+
     def tearDown(self):
         if hasattr(self, 'ner'):
             del self.ner

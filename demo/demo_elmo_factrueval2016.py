@@ -8,26 +8,30 @@ import sys
 import tempfile
 from typing import Union
 
+import numpy as np
 from rusenttokenize import ru_sent_tokenize
 
 try:
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat, set_total_seed
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import create_udpipe_pipeline
+    from deep_ner.dataset_splitting import sample_from_dataset
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
-    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat
+    from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat, set_total_seed
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import create_udpipe_pipeline
+    from deep_ner.dataset_splitting import sample_from_dataset
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool,
-          use_additional_features: bool, max_epochs: int, patience: int, batch_size: int, lr: float, l2: float,
-          gpu_memory_frac: float, model_name: str, collection3_dir: Union[str, None]=None) -> ELMo_NER:
+          use_lang_features: bool, use_shapes: bool, max_epochs: int, patience: int, batch_size: int,
+          lr: float, l2: float, gpu_memory_frac: float,
+          model_name: str, collection3_dir: Union[str, None]=None, n_max_samples: int=0) -> ELMo_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -65,9 +69,14 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
             finetune_elmo=elmo_will_be_tuned, batch_size=batch_size, l2_reg=l2, max_seq_length=n_tokens,
             elmo_hub_module_handle=elmo_hub_module_handle, validation_fraction=0.25, max_epochs=max_epochs,
             patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42, lr=lr, udpipe_lang='ru',
-            use_additional_features=use_additional_features
+            use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
         if collection3_dir is None:
+            if n_max_samples > 0:
+                index = sample_from_dataset(y=y, n=n_max_samples)
+                X = np.array(X, dtype=object)[index]
+                y = np.array(y, dtype=object)[index]
+                del index
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
@@ -87,6 +96,11 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
             print('The Collection3 data for training have been loaded...')
             print('Number of samples is {0}.'.format(len(y_train)))
             print('')
+            if n_max_samples > 0:
+                index = sample_from_dataset(y=y_train, n=n_max_samples)
+                X_train = np.array(X_train, dtype=object)[index]
+                y_train = np.array(y_train, dtype=object)[index]
+                del index
             recognizer.fit(X_train, y_train, validation_data=(X, y))
         with open(model_name, 'wb') as fp:
             pickle.dump(recognizer, fp)
@@ -163,6 +177,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-m', '--model', dest='model_name', type=str, required=True,
                         help='The binary file with the NER model.')
+    parser.add_argument('-n', '--number', dest='samples_number', type=str, required=False, default=None,
+                        help='Number of samples of the training sub-set.')
     parser.add_argument('-d', '--data', dest='data_name', type=str, required=True,
                         help='Path to the FactRuEval-2016 repository.')
     parser.add_argument('-r', '--result', dest='result_name', type=str, required=True,
@@ -184,8 +200,12 @@ def main():
                         help='L2 regularization factor.')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
-    parser.add_argument('--additional_features', dest='additional_features', required=False, action='store_true',
-                        default=False, help='Will be additional features used?')
+    parser.add_argument('--lang_features', dest='lang_features', required=False, action='store_true',
+                        default=False, help='Will be morphology and syntax used as additional feautres?')
+    parser.add_argument('--shapes', dest='shapes', required=False, action='store_true',
+                        default=False, help='Will be word shapes used as additional features?')
+    parser.add_argument('--seed', dest='random_seed', type=int, required=False, default=None,
+                        help='The random seed.')
     args = parser.parse_args()
 
     if args.text_unit not in {'sentence', 'paragraph'}:
@@ -193,11 +213,20 @@ def main():
     collection3_dir_name = None if args.collection_data_name is None else os.path.normpath(args.collection_data_name)
     devset_dir_name = os.path.join(os.path.normpath(args.data_name), 'devset')
     testset_dir_name = os.path.join(os.path.normpath(args.data_name), 'testset')
+    if args.random_seed is not None:
+        set_total_seed(args.random_seed)
+    if args.samples_number is None:
+        samples_number = 0
+    else:
+        samples_number = args.samples_number
+        if samples_number < 1:
+            raise ValueError('The samples number in training sub-set is wrong! It must be a positive integer value.')
     recognizer = train(factrueval2016_devset_dir=devset_dir_name, elmo_will_be_tuned=args.finetune_elmo,
                        max_epochs=args.max_epochs, patience=args.patience, batch_size=args.batch_size,
                        gpu_memory_frac=args.gpu_memory_frac, model_name=os.path.normpath(args.model_name), lr=args.lr,
                        l2=args.l2_coeff, split_by_paragraphs=(args.text_unit == 'paragraph'),
-                       collection3_dir=collection3_dir_name, use_additional_features=args.additional_features)
+                       collection3_dir=collection3_dir_name, n_max_samples=samples_number,
+                       use_lang_features=args.lang_features, use_shapes=args.shapes)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
               results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))
 

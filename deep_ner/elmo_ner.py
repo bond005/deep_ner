@@ -31,6 +31,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                  finetune_elmo: bool=False, batch_size: int = 32, max_seq_length: int = 32, lr: float = 1e-4,
                  l2_reg: float = 1e-5, validation_fraction: float = 0.1, max_epochs: int = 10, patience: int = 3,
                  gpu_memory_frac: float = 1.0, verbose: bool = False, random_seed: Union[int, None] = None):
+        super().__init__()
         self.udpipe_lang = udpipe_lang
         self.use_shapes = use_shapes
         self.use_nlp_features = use_nlp_features

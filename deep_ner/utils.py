@@ -3,12 +3,14 @@ import copy
 import json
 from logging import Logger
 import os
+import random
 import re
 from typing import Dict, Tuple, List, Union, Set
 import warnings
 
 from nltk.tokenize import sent_tokenize
 import numpy as np
+import tensorflow as tf
 
 from .udpipe_data import create_udpipe_pipeline
 
@@ -1178,3 +1180,9 @@ def normalize_text(s: str) -> str:
     re_for_space = re.compile(r'\s')
     s_ = re_for_space.sub(' ', s_)
     return s_
+
+
+def set_total_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_random_seed(seed)

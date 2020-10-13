@@ -14,13 +14,13 @@ from spacy_udpipe.language import UDPipeLanguage
 
 try:
     from deep_ner.elmo_ner import ELMo_NER
-    from deep_ner.utils import load_dataset_from_json
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER
-    from deep_ner.utils import load_dataset_from_json
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import UNIVERSAL_DEPENDENCIES, UNIVERSAL_POS_TAGS
 
@@ -30,6 +30,7 @@ class TestELMoNER(unittest.TestCase):
     def setUpClass(cls):
         cls.ELMO_HUB_MODULE = 'http://files.deeppavlov.ai/deeppavlov_data/elmo_ru-wiki_600k_steps.tar.gz'
         nltk.download('punkt')
+        set_total_seed(0)
 
     def tearDown(self):
         if hasattr(self, 'ner'):
