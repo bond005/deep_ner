@@ -54,7 +54,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.25,
             max_epochs=max_epochs, patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=1e-5 if bert_will_be_tuned else 1e-3,
+            lr=3e-6 if bert_will_be_tuned else 1e-4,
             udpipe_lang='ru', use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
         if collection3_dir is None:
@@ -165,7 +165,7 @@ def main():
                         help='The binary file with the NER model.')
     parser.add_argument('-d', '--data', dest='data_name', type=str, required=True,
                         help='Path to the FactRuEval-2016 repository.')
-    parser.add_argument('-n', '--number', dest='samples_number', type=str, required=False, default=None,
+    parser.add_argument('-n', '--number', dest='samples_number', type=int, required=False, default=None,
                         help='Number of samples of the training sub-set.')
     parser.add_argument('-r', '--result', dest='result_name', type=str, required=True,
                         help='The directory into which all recognized named entity labels will be saved.')

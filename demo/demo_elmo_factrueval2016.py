@@ -177,7 +177,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-m', '--model', dest='model_name', type=str, required=True,
                         help='The binary file with the NER model.')
-    parser.add_argument('-n', '--number', dest='samples_number', type=str, required=False, default=None,
+    parser.add_argument('-n', '--number', dest='samples_number', type=int, required=False, default=None,
                         help='Number of samples of the training sub-set.')
     parser.add_argument('-d', '--data', dest='data_name', type=str, required=True,
                         help='Path to the FactRuEval-2016 repository.')
@@ -195,7 +195,7 @@ def main():
                         help='Allocable part of the GPU memory for the NER model.')
     parser.add_argument('--finetune_elmo', dest='finetune_elmo', required=False, action='store_true',
                         default=False, help='Will be the ELMo and CRF finetuned together? Or the ELMo will be frozen?')
-    parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-3, help='Learning rate.')
+    parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-4, help='Learning rate.')
     parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-2,
                         help='L2 regularization factor.')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
