@@ -17,7 +17,7 @@ try:
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import create_udpipe_pipeline
-    from deep_ner.dataset_splitting import sample_from_dataset
+    from deep_ner.dataset_splitting import sample_from_dataset, split_dataset
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.elmo_ner import ELMo_NER, elmo_ner_logger
@@ -25,7 +25,7 @@ except:
     from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.udpipe_data import create_udpipe_pipeline
-    from deep_ner.dataset_splitting import sample_from_dataset
+    from deep_ner.dataset_splitting import sample_from_dataset, split_dataset
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_be_tuned: bool,
@@ -73,10 +73,14 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
         )
         if collection3_dir is None:
             if n_max_samples > 0:
-                index = sample_from_dataset(y=y, n=n_max_samples)
-                X = np.array(X, dtype=object)[index]
-                y = np.array(y, dtype=object)[index]
-                del index
+                train_index, test_index = split_dataset(y=y, test_part=recognizer.validation_fraction)
+                X_train = np.array(X, dtype=object)[train_index]
+                y_train = np.array(y, dtype=object)[train_index]
+                X_val = np.array(X, dtype=object)[test_index]
+                y_val = np.array(y, dtype=object)[test_index]
+                del train_index, test_index
+                index = sample_from_dataset(y=y_train, n=n_max_samples)
+                recognizer.fit(X_train[index], y_train[index], validation_data=(X_val, y_val))
             recognizer.fit(X, y)
         else:
             X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
