@@ -7,16 +7,20 @@ import numpy as np
 
 
 try:
-    from deep_ner.dataset_splitting import split_dataset
-    from deep_ner.utils import load_dataset_from_json
+    from deep_ner.dataset_splitting import split_dataset, sample_from_dataset
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from deep_ner.utils import load_dataset_from_json
-    from deep_ner.dataset_splitting import split_dataset
+    from deep_ner.utils import load_dataset_from_json, set_total_seed
+    from deep_ner.dataset_splitting import split_dataset, sample_from_dataset
 
 
 class TestDatasetSplitting(unittest.TestCase):
-    def test_positive01(self):
+    @classmethod
+    def setUpClass(cls):
+        set_total_seed(0)
+
+    def test_split_dataset_positive01(self):
         base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
         _, y = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
         train_index, test_index = split_dataset(y, 0.3, 10)
@@ -37,7 +41,7 @@ class TestDatasetSplitting(unittest.TestCase):
         self.assertEqual(true_set_of_classes, set_of_classes_for_training)
         self.assertEqual(true_set_of_classes, set_of_classes_for_testing)
 
-    def test_negative01(self):
+    def test_split_dataset_negative01(self):
         y = [
             {"LOCATION": [(55, 63), (66, 84), (87, 93)], "PERSON": [(281, 289)]}
         ]
@@ -45,7 +49,7 @@ class TestDatasetSplitting(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _ = split_dataset(y, 0.3333, n_restarts=4)
 
-    def test_negative02(self):
+    def test_split_dataset_negative02(self):
         y = [
             {"LOCATION": [(55, 63), (66, 84), (87, 93)], "PERSON": [(281, 289)]},
             {"PERSON": [(33, 44)], "LOCATION": [(198, 204), (189, 197), (168, 185)], "ORG": [(230, 249)]},
@@ -57,7 +61,7 @@ class TestDatasetSplitting(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _ = split_dataset(y, 0.01, n_restarts=10)
 
-    def test_negative03(self):
+    def test_split_dataset_negative03(self):
         y = [
             {"LOCATION": [(55, 63), (66, 84), (87, 93)], "PERSON": [(281, 289)]},
             {"PERSON": [(33, 44)], "LOCATION": [(198, 204), (189, 197), (168, 185)], "ORG": [(230, 249)]},
@@ -69,7 +73,7 @@ class TestDatasetSplitting(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _ = split_dataset(y, 0.99, n_restarts=4)
 
-    def test_negative04(self):
+    def test_split_dataset_negative04(self):
         y = [
             {"LOCATION": [(55, 63), (66, 84), (87, 93)], "PERSON": [(281, 289)]},
             {"PERSON": [(33, 44)], "LOCATION": [(198, 204), (189, 197), (168, 185)], "ORG": [(230, 249)]},
@@ -79,6 +83,28 @@ class TestDatasetSplitting(unittest.TestCase):
         true_err_msg = re.escape('1 is too small value of restarts number. It must be greater than 1.')
         with self.assertRaisesRegex(ValueError, true_err_msg):
             _, _ = split_dataset(y, 0.3333, n_restarts=1)
+
+    def test_sample_from_dataset_positive01(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        _, y = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
+        subset_index = sample_from_dataset(y=y, n=3, n_restarts=10)
+        self.assertIsInstance(subset_index, np.ndarray)
+        self.assertEqual(3, len(subset_index))
+        self.assertGreater(len(y), len(subset_index))
+        self.assertEqual(len(subset_index), len(set(subset_index.tolist())))
+        true_set_of_classes = {'ORG', 'PERSON', 'LOCATION'}
+        subset_of_classes = set()
+        for idx in subset_index:
+            subset_of_classes |= set(y[idx].keys())
+        self.assertEqual(true_set_of_classes, subset_of_classes)
+
+    def test_sample_from_dataset_positive02(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'testdata')
+        _, y = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
+        subset_index = sample_from_dataset(y=y, n=(len(y) + 1) * 2, n_restarts=10)
+        self.assertIsInstance(subset_index, np.ndarray)
+        self.assertEqual(len(y), len(subset_index))
+        self.assertEqual(set(range(len(y))), set(subset_index.tolist()))
 
 
 if __name__ == '__main__':

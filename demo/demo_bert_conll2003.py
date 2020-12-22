@@ -7,18 +7,18 @@ from typing import Union
 
 try:
     from deep_ner.bert_ner import BERT_NER, bert_ner_logger
-    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio
+    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
 except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.bert_ner import BERT_NER, bert_ner_logger
-    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio
+    from deep_ner.utils import load_dataset_from_bio, save_dataset_as_bio, set_total_seed
     from deep_ner.quality import calculate_prediction_quality
 
 
 def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool, bert_will_be_tuned: bool,
-          use_additional_features: bool, lstm_layer_size: Union[int, None], l2: float, max_epochs: int, patience: int,
-          batch_size: int, gpu_memory_frac: float, model_name: str) -> BERT_NER:
+          use_lang_features: bool, use_shapes: bool, lstm_layer_size: Union[int, None], l2: float,
+          max_epochs: int, patience: int, batch_size: int, gpu_memory_frac: float, model_name: str) -> BERT_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -48,7 +48,8 @@ def train(train_file_name: str, valid_file_name: str, split_by_paragraphs: bool,
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, max_epochs=max_epochs,
             patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=1e-6 if bert_will_be_tuned else 1e-4, udpipe_lang='en', use_additional_features=use_additional_features
+            lr=1e-6 if bert_will_be_tuned else 1e-4,
+            udpipe_lang='en', use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
         recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         print('')
@@ -127,8 +128,12 @@ def main():
                                            'large cased BERT model from the TF-Hub will be used).')
     parser.add_argument('--text', dest='text_unit', type=str, choices=['sentence', 'paragraph'], required=False,
                         default='sentence', help='Text unit: sentence or paragraph.')
-    parser.add_argument('--additional_features', dest='additional_features', required=False, action='store_true',
-                        default=False, help='Will be additional features used?')
+    parser.add_argument('--lang_features', dest='lang_features', required=False, action='store_true',
+                        default=False, help='Will be morphology and syntax used as additional feautres?')
+    parser.add_argument('--shapes', dest='shapes', required=False, action='store_true',
+                        default=False, help='Will be word shapes used as additional features?')
+    parser.add_argument('--seed', dest='random_seed', type=int, required=False, default=None,
+                        help='The random seed.')
     args = parser.parse_args()
 
     train_file_name = os.path.normpath(args.train_file_name)
@@ -145,8 +150,11 @@ def main():
         if not os.path.isdir(path_to_bert):
             raise ValueError('The directory `{0}` does not exist!'.format(path_to_bert))
     BERT_NER.PATH_TO_BERT = path_to_bert
+    if args.random_seed is not None:
+        set_total_seed(args.random_seed)
     recognizer = train(train_file_name=train_file_name, valid_file_name=valid_file_name, l2=args.l2_coeff,
-                       bert_will_be_tuned=args.finetune_bert, use_additional_features=args.additional_features,
+                       bert_will_be_tuned=args.finetune_bert,
+                       use_lang_features=args.lang_features, use_shapes=args.shapes,
                        max_epochs=args.max_epochs, patience=args.patience, batch_size=args.batch_size,
                        gpu_memory_frac=args.gpu_memory_frac, model_name=os.path.normpath(args.model_name),
                        lstm_layer_size=args.lstm_units, split_by_paragraphs=(args.text_unit == 'paragraph'))
