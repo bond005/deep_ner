@@ -100,7 +100,8 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_train_ = y
             X_val_ = validation_data[0]
             y_val_ = validation_data[1]
-        X_train_tokenized, y_train_tokenized, self.shapes_list_ = self.tokenize_all(X_train_, y_train_)
+        X_train_tokenized, y_train_tokenized, self.shapes_list_ = self.tokenize_all(X_train_, y_train_,
+                                                                                    remove_empty_samples=True)
         X_train_tokenized, y_train_tokenized = self.extend_Xy(X_train_tokenized, y_train_tokenized, shuffle=True)
         if (X_val_ is not None) and (y_val_ is not None):
             X_val_tokenized, y_val_tokenized, _ = self.tokenize_all(X_val_, y_val_, shapes_vocabulary=self.shapes_list_)
@@ -160,9 +161,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                         acc_test += acc_test_ * self.batch_size
                         sequence_lengths = X_val_tokenized[1][cur_batch[0]:cur_batch[1]]
                         for logit, sequence_length in zip(logits, sequence_lengths):
-                            logit = logit[:int(sequence_length)]
-                            viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                            y_pred += [viterbi_seq]
+                            if sequence_length > 0:
+                                logit = logit[:int(sequence_length)]
+                                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                                y_pred += [viterbi_seq]
+                            else:
+                                y_pred += [[]]
                     acc_test /= float(X_val_tokenized[0].shape[0])
                     if self.verbose:
                         elmo_ner_logger.info('Epoch {0}'.format(epoch))
@@ -240,9 +244,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                             acc_test += acc_test_ * self.batch_size
                             sequence_lengths = X_val_tokenized[1][cur_batch[0]:cur_batch[1]]
                             for logit, sequence_length in zip(logits, sequence_lengths):
-                                logit = logit[:int(sequence_length)]
-                                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                                y_pred += [viterbi_seq]
+                                if sequence_length > 0:
+                                    logit = logit[:int(sequence_length)]
+                                    viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                                    y_pred += [viterbi_seq]
+                                else:
+                                    y_pred += [[]]
                         acc_test /= float(X_val_tokenized[0].shape[0])
                         pred_entities_val = []
                         for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
@@ -291,9 +298,12 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             logits, trans_params = self.sess_.run(['outputs_of_NER/BiasAdd:0', 'transitions:0'], feed_dict=feed_dict)
             sequence_lengths = X_tokenized[1][cur_batch[0]:cur_batch[1]]
             for logit, sequence_length in zip(logits, sequence_lengths):
-                logit = logit[:int(sequence_length)]
-                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                y_pred += [viterbi_seq]
+                if sequence_length > 0:
+                    logit = logit[:int(sequence_length)]
+                    viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                    y_pred += [viterbi_seq]
+                else:
+                    y_pred += [[]]
         del bounds_of_batches
         recognized_entities_in_texts = []
         for sample_idx, labels_in_text in enumerate(y_pred[0:n_samples]):
@@ -378,15 +388,16 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         return X_ext, y_ext
 
     def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array] = None,
-                     shapes_vocabulary: Union[tuple, None] = None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
-                                                                            tuple]:
+                     shapes_vocabulary: Union[tuple, None] = None,
+                     remove_empty_samples: bool = False) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
+                                                                  tuple]:
         if shapes_vocabulary is not None:
             if len(shapes_vocabulary) < 1:
                 raise ValueError('Shapes vocabulary is empty!')
         tokens_of_texts = []
         lenghts_of_texts = []
         lingustic_features_of_texts = []
-        y_tokenized = None if y is None else np.empty((len(y), self.max_seq_length), dtype=np.int32)
+        y_tokenized = None if y is None else np.zeros((len(y), self.max_seq_length), dtype=np.int32)
         n_samples = len(X)
         shapes_of_texts = []
         shapes_dict = dict()
@@ -400,7 +411,19 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 normalized_text = normalize_text(source_text)
                 if not hasattr(self, 'nlp_'):
                     self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
+                if len(normalized_text.strip()) == 0:
+                    tokens_of_texts.append(['' for _ in range(self.max_seq_length)])
+                    shapes_of_texts.append(tuple())
+                    lingustic_features_of_texts.append(tuple())
+                    lenghts_of_texts.append(0)
+                    continue
                 spacy_doc = self.nlp_(normalized_text)
+                if len(spacy_doc) == 0:
+                    tokens_of_texts.append(['' for _ in range(self.max_seq_length)])
+                    shapes_of_texts.append(tuple())
+                    lingustic_features_of_texts.append(tuple())
+                    lenghts_of_texts.append(0)
+                    continue
                 tokenized_text = []
                 pos_tags = []
                 dependencies = []
@@ -436,12 +459,29 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 lingustic_features_of_texts.append(tuple(zip(pos_tags, dependencies)))
                 del pos_tags, dependencies, tokenized_text
         else:
+            sample_idx_ = 0
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
                 normalized_text = normalize_text(source_text)
                 if not hasattr(self, 'nlp_'):
                     self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
+                if (len(normalized_text.strip()) == 0) or (len(y[sample_idx]) == 0):
+                    if not remove_empty_samples:
+                        tokens_of_texts.append(['' for _ in range(self.max_seq_length)])
+                        shapes_of_texts.append(tuple())
+                        lingustic_features_of_texts.append(tuple())
+                        lenghts_of_texts.append(0)
+                        sample_idx_ += 1
+                    continue
                 spacy_doc = self.nlp_(normalized_text)
+                if len(spacy_doc) == 0:
+                    if not remove_empty_samples:
+                        tokens_of_texts.append(['' for _ in range(self.max_seq_length)])
+                        shapes_of_texts.append(tuple())
+                        lingustic_features_of_texts.append(tuple())
+                        lenghts_of_texts.append(0)
+                        sample_idx_ += 1
+                    continue
                 tokenized_text = []
                 pos_tags = []
                 dependencies = []
@@ -463,7 +503,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 bounds_of_tokens = self.calculate_bounds_of_tokens(normalized_text, tokenized_text)
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
                     normalized_text, self.classes_list_, y[sample_idx])
-                y_tokenized[sample_idx] = self.detect_token_labels(
+                y_tokenized[sample_idx_] = self.detect_token_labels(
                     bounds_of_tokens, indices_of_named_entities, labels_IDs, self.max_seq_length
                 )
                 ndiff = len(tokenized_text) - self.max_seq_length
@@ -482,7 +522,9 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                 shapes_of_texts.append(shapes_of_text)
                 lingustic_features_of_texts.append(tuple(zip(pos_tags, dependencies)))
                 del pos_tags, dependencies, tokenized_text
-        assert len(X) == len(tokens_of_texts), '{0} != {1}'.format(len(X), len(tokens_of_texts))
+                sample_idx_ += 1
+            assert sample_idx_ >= len(tokens_of_texts), '{0} != {1}'.format(sample_idx_, len(tokens_of_texts))
+        assert len(X) >= len(tokens_of_texts), '{0} != {1}'.format(len(X), len(tokens_of_texts))
         assert len(tokens_of_texts) == len(lenghts_of_texts), '{0} != {1}'.format(
             len(tokens_of_texts), len(lenghts_of_texts))
         assert len(lenghts_of_texts) == len(lingustic_features_of_texts), '{0} != {1}'.format(
@@ -500,8 +542,9 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             shapes_vocabulary_ = tuple(shapes_vocabulary_)
         else:
             shapes_vocabulary_ = shapes_vocabulary
-        shapes_ = np.zeros((len(X), self.max_seq_length, len(shapes_vocabulary_) + 3), dtype=np.float32)
-        for sample_idx in range(n_samples):
+        shapes_ = np.zeros((len(tokens_of_texts), self.max_seq_length, len(shapes_vocabulary_) + 3),
+                           dtype=np.float32)
+        for sample_idx in range(len(tokens_of_texts)):
             for token_idx, cur_shape in enumerate(shapes_of_texts[sample_idx]):
                 if cur_shape in shapes_vocabulary_:
                     shape_ID = shapes_vocabulary_.index(cur_shape)
@@ -511,9 +554,15 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             shapes_[sample_idx][0][len(shapes_vocabulary_) + 1] = 1.0
             shapes_[sample_idx][len(shapes_of_texts[sample_idx]) - 1][len(shapes_vocabulary_) + 2] = 1.0
         del shapes_of_texts
-        linguistic_features = np.zeros((len(X), self.max_seq_length, len(self.universal_pos_tags_dict_) +
-                                        len(self.universal_dependencies_dict_)), dtype=np.float32)
-        for sample_idx in range(n_samples):
+        linguistic_features = np.zeros(
+            (
+                len(tokens_of_texts),
+                self.max_seq_length,
+                len(self.universal_pos_tags_dict_) + len(self.universal_dependencies_dict_)
+            ),
+            dtype=np.float32
+        )
+        for sample_idx in range(len(tokens_of_texts)):
             for token_idx in range(len(lingustic_features_of_texts[sample_idx])):
                 pos_tag, dependency_tag = lingustic_features_of_texts[sample_idx][token_idx]
                 pos_tag_id = self.universal_pos_tags_dict_.get(pos_tag, -1)
@@ -539,7 +588,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
                  linguistic_features]
         else:
             X = [np.array(tokens_of_texts, dtype=np.str), np.array(lenghts_of_texts, dtype=np.int32)]
-        return X, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_
+        return X, (None if y is None else y_tokenized[:X[0].shape[0]]), shapes_vocabulary_
 
     def get_params(self, deep=True) -> dict:
         return {'elmo_hub_module_handle': self.elmo_hub_module_handle, 'finetune_elmo': self.finetune_elmo,

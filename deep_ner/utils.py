@@ -869,7 +869,13 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
             full_text = full_text.replace('\n', ' ').replace('\r', ' ')
             texts.append(full_text)
             entities.append(entities_in_text)
-    return texts, entities
+    filtered_texts = []
+    filtered_entities = []
+    for cur_text, entities_in_text in zip(texts, entities):
+        if len(cur_text.strip()) > 0:
+            filtered_texts.append(cur_text)
+            filtered_entities.append(entities_in_text)
+    return filtered_texts, filtered_entities
 
 
 def load_dataset_from_bio(file_name: str, paragraph_separators: Set[str]=None,
@@ -1158,8 +1164,11 @@ def divide_dataset_by_sentences(X: Union[list, tuple, np.array], y: Union[list, 
                 entities_in_sentences[sentence_idx][entity_type] = sorted(
                     entities_in_sentences[sentence_idx][entity_type]
                 )
-        X_new += [X[sample_idx][sent_start:sent_end] for sent_start, sent_end in bounds_of_sentences]
-        y_new += entities_in_sentences
+        for (sent_start, sent_end), entities_in_cur_sent in zip(bounds_of_sentences, entities_in_sentences):
+            if sent_end > sent_start:
+                if len(X[sample_idx][sent_start:sent_end].strip()) > 0:
+                    X_new.append(X[sample_idx][sent_start:sent_end])
+                    y_new.append(entities_in_cur_sent)
     if isinstance(X, tuple):
         X_new = tuple(X_new)
     elif isinstance(X, np.ndarray):

@@ -115,7 +115,7 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             y_val_ = validation_data[1]
         self.tokenizer_ = self.initialize_bert_tokenizer()
         X_train_tokenized, y_train_tokenized, self.shapes_list_, bounds_of_tokens_for_training = self.tokenize_all(
-            X_train_, y_train_)
+            X_train_, y_train_, remove_empty_samples=True)
         if self.verbose:
             lengths_of_texts = []
             sum_of_lengths = 0
@@ -190,9 +190,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         acc_test += self.batch_size * acc_test_
                         sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
                         for logit, sequence_length in zip(logits, sequence_lengths):
-                            logit = logit[:int(sequence_length)]
-                            viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                            y_pred += [viterbi_seq]
+                            if sequence_length > 0:
+                                logit = logit[:int(sequence_length)]
+                                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                                y_pred += [viterbi_seq]
+                            else:
+                                y_pred += [[]]
                     acc_test /= float(X_val_tokenized[0].shape[0])
                     if self.verbose:
                         bert_ner_logger.info('Epoch {0}'.format(epoch))
@@ -269,9 +272,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
                         acc_test += self.batch_size * acc_test_
                         sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
                         for logit, sequence_length in zip(logits, sequence_lengths):
-                            logit = logit[:int(sequence_length)]
-                            viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                            y_pred += [viterbi_seq]
+                            if sequence_length > 0:
+                                logit = logit[:int(sequence_length)]
+                                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                                y_pred += [viterbi_seq]
+                            else:
+                                y_pred += [[]]
                     acc_test /= float(X_val_tokenized[0].shape[0])
                     pred_entities_val = []
                     for sample_idx, labels_in_text in enumerate(y_pred[0:len(X_val_)]):
@@ -325,9 +331,12 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             )
             sequence_lengths = np.maximum(np.sum(mask, axis=1).astype(np.int32), 1)
             for logit, sequence_length in zip(logits, sequence_lengths):
-                logit = logit[:int(sequence_length)]
-                viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
-                y_pred += [viterbi_seq]
+                if sequence_length > 0:
+                    logit = logit[:int(sequence_length)]
+                    viterbi_seq, viterbi_score = tf.contrib.crf.viterbi_decode(logit, trans_params)
+                    y_pred += [viterbi_seq]
+                else:
+                    y_pred += [[]]
         del bounds_of_batches
         recognized_entities_in_texts = []
         for sample_idx, labels_in_text in enumerate(y_pred[0:n_samples]):
@@ -411,8 +420,9 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         return X_ext, y_ext, bounds_of_tokens_ext
 
     def tokenize_all(self, X: Union[list, tuple, np.array], y: Union[list, tuple, np.array] = None,
-                     shapes_vocabulary: Union[tuple, None] = None) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
-                                                                            tuple, np.ndarray]:
+                     shapes_vocabulary: Union[tuple, None] = None,
+                     remove_empty_samples: bool = False) -> Tuple[List[np.ndarray], Union[np.ndarray, None],
+                                                                  tuple, np.ndarray]:
         if shapes_vocabulary is not None:
             if len(shapes_vocabulary) < 4:
                 raise ValueError('Shapes vocabulary is wrong!')
@@ -455,7 +465,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             if not hasattr(self, 'nlp_'):
                 self.nlp_ = create_udpipe_pipeline(self.udpipe_lang)
             normalized_text = normalize_text(source_text)
+            if len(normalized_text.strip()) == 0:
+                all_tokenized_texts.append([])
+                bounds_of_tokens.append([])
+                shapes.append([])
+                continue
             spacy_doc = self.nlp_(normalized_text)
+            if len(spacy_doc) == 0:
+                continue
             pos_tags = []
             dependencies = []
             for spacy_token in spacy_doc:
@@ -541,12 +558,14 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if y is None:
             y_tokenized = None
         else:
-            y_tokenized = np.empty((len(y), self.max_seq_length), dtype=np.int32)
+            y_tokenized = np.zeros((len(y), self.max_seq_length), dtype=np.int32)
             for sample_idx in range(n_samples):
                 source_text = X[sample_idx]
                 normalized_text = normalize_text(source_text)
                 tokenized_text = all_tokenized_texts[sample_idx]
                 bounds_of_tokens_for_text = bounds_of_tokens[sample_idx]
+                if len(bounds_of_tokens_for_text) == 0:
+                    continue
                 indices_of_named_entities, labels_IDs = self.calculate_indices_of_named_entities(
                     normalized_text, self.classes_list_, y[sample_idx])
                 y_tokenized[sample_idx] = self.detect_token_labels(
@@ -580,8 +599,23 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         if self.use_shapes:
             X_tokenized[3] = np.concatenate((X_tokenized[3], shapes_), axis=-1)
         del shapes_, shapes
-        return X_tokenized, (None if y is None else np.array(y_tokenized)), shapes_vocabulary_, \
-               np.array(bounds_of_tokens, dtype=np.object)
+        if remove_empty_samples and (y is not None):
+            n_samples = 0
+            for sample_idx in range(y_tokenized.shape[0]):
+                if len(bounds_of_tokens[sample_idx]) > 0:
+                    n_samples += 1
+                else:
+                    for sample_idx_ in range(sample_idx + 1, y_tokenized.shape[0]):
+                        y_tokenized[sample_idx_ - 1] = y_tokenized[sample_idx_]
+                        for input_idx in range(len(X_tokenized)):
+                            X_tokenized[input_idx][sample_idx_ - 1] = X_tokenized[input_idx][sample_idx_]
+                        bounds_of_tokens[sample_idx_ - 1] = bounds_of_tokens[sample_idx_]
+            if n_samples < y_tokenized.shape[0]:
+                y_tokenized = y_tokenized[:n_samples]
+                for input_idx in range(len(X_tokenized)):
+                    X_tokenized[input_idx] = X_tokenized[input_idx][:n_samples]
+        return X_tokenized, (None if y is None else y_tokenized), \
+               shapes_vocabulary_, np.array(bounds_of_tokens[:n_samples], dtype=np.object)
 
     def get_params(self, deep=True) -> dict:
         return {'bert_hub_module_handle': self.bert_hub_module_handle, 'finetune_bert': self.finetune_bert,

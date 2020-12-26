@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import pickle
+import random
 import sys
 import tempfile
 from typing import Union
@@ -21,6 +22,7 @@ except:
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     from deep_ner.bert_ner import BERT_NER, bert_ner_logger
     from deep_ner.utils import factrueval2016_to_json, load_dataset_from_json, load_dataset_from_brat, set_total_seed
+    from deep_ner.utils import divide_dataset_by_sentences
     from deep_ner.quality import calculate_prediction_quality
     from deep_ner.dataset_splitting import sample_from_dataset, split_dataset
 
@@ -45,6 +47,20 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
                 os.remove(temp_json_name)
         print('The FactRuEval-2016 data for training have been loaded...')
         print('Number of samples is {0}.'.format(len(y)))
+        indices_of_samples = sorted(
+            list(range(len(y))),
+            key=lambda sample_idx: (
+                len(y[sample_idx]),
+                sum(map(lambda it: len(y[sample_idx][it]), y[sample_idx]))
+            )
+        )
+        for sample_idx in indices_of_samples[-3:]:
+            print('')
+            print('  {0}'.format(X[sample_idx]))
+            for ne in sorted(list(y[sample_idx].keys())):
+                print('  {0}:'.format(ne))
+                print('    {0}'.format(y[sample_idx][ne]))
+        del indices_of_samples
         print('')
         if BERT_NER.PATH_TO_BERT is None:
             bert_hub_module_handle = 'https://tfhub.dev/google/bert_multi_cased_L-12_H-768_A-12/1'
@@ -86,6 +102,20 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
                 del new_y_sample
             print('The Collection3 data for training have been loaded...')
             print('Number of samples is {0}.'.format(len(y_train)))
+            indices_of_samples = sorted(
+                list(range(len(y_train_))),
+                key=lambda sample_idx: (
+                    len(y_train_[sample_idx]),
+                    sum(map(lambda it: len(y_train_[sample_idx][it]), y_train_[sample_idx]))
+                )
+            )
+            for sample_idx in indices_of_samples[-3:]:
+                print('')
+                print('  {0}'.format(X_train_[sample_idx]))
+                for ne in sorted(list(y_train_[sample_idx].keys())):
+                    print('  {0}:'.format(ne))
+                    print('    {0}'.format(y_train_[sample_idx][ne]))
+            del indices_of_samples
             print('')
             if (n_max_samples == 0) or ((n_max_samples > 0) and (X_train.shape[0] < n_max_samples)):
                 if n_max_samples > 0:
@@ -93,8 +123,8 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
                     X_train_ = np.array(X_train_, dtype=object)[index]
                     y_train_ = np.array(y_train_, dtype=object)[index]
                     del index
-                X_train = np.vstack((X_train, X_train_))
-                y_train = np.vstack((y_train, y_train_))
+                X_train = np.concatenate((X_train, np.array(X_train_, dtype=object)))
+                y_train = np.concatenate((y_train, np.array(y_train_, dtype=object)))
             del X_train_, y_train_
         recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         with open(model_name, 'wb') as fp:
@@ -206,6 +236,9 @@ def main():
     parser.add_argument('--seed', dest='random_seed', type=int, required=False, default=None,
                         help='The random seed.')
     args = parser.parse_args()
+
+    if args.random_seed is not None:
+        random.seed(args.random_seed)
 
     if args.text_unit not in {'sentence', 'paragraph'}:
         raise ValueError('`{0}` is wrong value for the `text_unit` parameter!'.format(args.text_unit))

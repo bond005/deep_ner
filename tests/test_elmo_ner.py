@@ -1065,7 +1065,7 @@ class TestELMoNER(unittest.TestCase):
                             validation_fraction=0.3, random_seed=None, elmo_hub_module_handle=self.ELMO_HUB_MODULE,
                             udpipe_lang='ru')
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
+        res = self.ner.fit(X_train + [''], y_train + [dict()])
         self.assertIsInstance(res, ELMo_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'use_shapes'))
@@ -1177,6 +1177,7 @@ class TestELMoNER(unittest.TestCase):
         self.assertIsInstance(res.nlp_, UDPipeLanguage)
         self.assertEqual(len(res.universal_pos_tags_dict_), len(UNIVERSAL_POS_TAGS))
         self.assertEqual(len(res.universal_dependencies_dict_), len(UNIVERSAL_DEPENDENCIES))
+        res.update_random_seed()
         y_pred1 = res.predict(X_train)
         self.assertIsInstance(y_pred1, list)
         self.assertEqual(len(X_train), len(y_pred1))

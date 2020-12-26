@@ -6,7 +6,7 @@ tensorboard==1.15.0
 tensorflow==1.15.0
 tensorflow-hub==0.8.0
 bert-tensorflow==1.0.1
-spacy-udpipe==0.2.0
+spacy-udpipe==0.3.2
 spacy==2.2.3
 pymorphy2==0.8
 rusenttokenize==0.0.5

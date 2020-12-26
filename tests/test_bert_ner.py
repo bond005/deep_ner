@@ -1153,7 +1153,7 @@ class TestBertNer(unittest.TestCase):
                             validation_fraction=0.3, random_seed=42, udpipe_lang='ru', use_shapes=True,
                             use_nlp_features=False)
         X_train, y_train = load_dataset_from_json(os.path.join(base_dir, 'true_named_entities.json'))
-        res = self.ner.fit(X_train, y_train)
+        res = self.ner.fit(X_train + [''], y_train + [dict()])
         self.assertIsInstance(res, BERT_NER)
         self.assertTrue(hasattr(res, 'udpipe_lang'))
         self.assertTrue(hasattr(res, 'batch_size'))
