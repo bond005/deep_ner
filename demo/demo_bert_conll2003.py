@@ -122,7 +122,7 @@ def main():
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
                         help='Allocable part of the GPU memory for the NER model.')
     parser.add_argument('--finetune_bert', dest='finetune_bert', required=False, action='store_true',
-                        default=False, help='Will be the BERT and CRF finetuned together? Or the BERT will be frozen?')
+                        default=False, help='Will be the BERT and last layers finetuned together? Or the BERT will be frozen?')
     parser.add_argument('--path_to_bert', dest='path_to_bert', required=False, type=str,
                         default=None, help='Path to the BERT model (if it is not specified, than the standard '
                                            'large cased BERT model from the TF-Hub will be used).')

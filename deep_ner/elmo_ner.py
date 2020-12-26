@@ -110,7 +110,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             y_val_tokenized = None
         if self.verbose and self.use_shapes:
             elmo_ner_logger.info('Number of shapes is {0}.'.format(len(self.shapes_list_)))
-        train_op, log_likelihood, logits_, transition_params_ = self.build_model()
+        train_op, log_likelihood, logits_, transition_params_ = self.build_model(self.batch_size)
         n_batches = int(np.ceil(X_train_tokenized[0].shape[0] / float(self.batch_size)))
         bounds_of_batches_for_training = []
         for iteration in range(n_batches):
@@ -680,7 +680,7 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
             self.set_params(**new_params)
         return self
 
-    def build_model(self):
+    def build_model(self, batch_size: int):
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = self.gpu_memory_frac
         config.gpu_options.allow_growth = True
@@ -764,10 +764,51 @@ class ELMo_NER(BaseEstimator, ClassifierMixin):
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, y_ph, sequence_lengths)
         loss_tensor = -log_likelihood
         base_loss = tf.reduce_mean(loss_tensor)
+        with tf.name_scope('dice_loss'):
+            number_of_indices = tf.reduce_prod(logits.shape[:-1])
+            indices_of_ones = tf.concat(
+                (
+                    tf.reshape(
+                        tf.repeat(
+                            tf.range(0, logits.shape[0], dtype=tf.int32),
+                            repeats=logits.shape[1]
+                        ),
+                        (number_of_indices, 1)
+                    ),
+                    tf.reshape(
+                        tf.repeat(
+                            tf.reshape(tf.range(0, logits.shape[1], dtype=tf.int32),
+                                       (1, logits.shape[1])),
+                            repeats=logits.shape[0],
+                            axis=0
+                        ),
+                        (number_of_indices, 1)
+                    ),
+                    tf.reshape(
+                        tf.cast(y_ph, dtype=tf.int32),
+                        (number_of_indices, 1)
+                    )
+                ),
+                axis=-1
+            )
+            values_of_ones = tf.repeat(1.0, repeats=number_of_indices)
+            true_outputs = tf.scatter_nd(indices=indices_of_ones, updates=values_of_ones,
+                                         shape=logits.shape)
+            probas = tf.nn.sigmoid(logits)
+            masks = tf.sequence_mask(sequence_lengths, maxlen=self.max_seq_length,
+                                     dtype=tf.float32)
+            dice_loss_1 = tf.reduce_mean(true_outputs * probas, axis=-1) * masks
+            dice_loss_1 = tf.reduce_mean(dice_loss_1, axis=None)
+            dice_loss_2 = tf.reduce_mean(true_outputs * true_outputs, axis=-1) * masks
+            dice_loss_2 = tf.reduce_mean(dice_loss_2, axis=None)
+            dice_loss_3 = tf.reduce_mean(probas * probas, axis=-1) * masks
+            dice_loss_3 = tf.reduce_mean(dice_loss_3, axis=None)
+            dice_loss = 1.0 - (2.0 * dice_loss_1 + 1.0) / (dice_loss_2 + dice_loss_3 + 1.0)
+            dice_loss *= (batch_size * self.max_seq_length)
         regularization_loss = self.l2_reg * tf.reduce_sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-        final_loss = base_loss + regularization_loss
+        final_loss = base_loss + regularization_loss + dice_loss
         with tf.name_scope('train'):
-            optimizer = tf.train.RMSPropOptimizer(learning_rate=self.lr, momentum=0.9, decay=0.9, epsilon=1e-10)
+            optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
             train_op = optimizer.minimize(final_loss)
         with tf.name_scope('eval'):
             log_likelihood_eval_, _ = tf.contrib.crf.crf_log_likelihood(logits, y_ph,

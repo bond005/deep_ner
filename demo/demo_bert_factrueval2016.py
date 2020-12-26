@@ -57,42 +57,46 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             lr=3e-6 if bert_will_be_tuned else 1e-4,
             udpipe_lang='ru', use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
-        if collection3_dir is None:
-            if n_max_samples > 0:
-                train_index, test_index = split_dataset(y=y, test_part=recognizer.validation_fraction)
-                X_train = np.array(X, dtype=object)[train_index]
-                y_train = np.array(y, dtype=object)[train_index]
-                X_val = np.array(X, dtype=object)[test_index]
-                y_val = np.array(y, dtype=object)[test_index]
-                del train_index, test_index
-                index = sample_from_dataset(y=y_train, n=n_max_samples)
-                recognizer.fit(X_train[index], y_train[index], validation_data=(X_val, y_val))
-            else:
-                recognizer.fit(X, y)
-        else:
-            X_train, y_train = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
+        train_index, test_index = split_dataset(y=y, test_part=recognizer.validation_fraction)
+        X_train = np.array(X, dtype=object)[train_index]
+        y_train = np.array(y, dtype=object)[train_index]
+        X_val = np.array(X, dtype=object)[test_index]
+        y_val = np.array(y, dtype=object)[test_index]
+        del train_index, test_index
+        if n_max_samples > 0:
+            index = sample_from_dataset(y=y_train, n=n_max_samples)
+            X_train = X_train[index]
+            y_train = y_train[index]
+            del index
+        if collection3_dir is not None:
+            X_train_, y_train_ = load_dataset_from_brat(collection3_dir, split_by_paragraphs=True)
             if not split_by_paragraphs:
-                X_train, y_train = divide_dataset_by_sentences(X_train, y_train, sent_tokenize_func=ru_sent_tokenize)
-            for sample_idx in range(len(y_train)):
+                X_train_, y_train_ = divide_dataset_by_sentences(X_train_, y_train_,
+                                                                 sent_tokenize_func=ru_sent_tokenize)
+            for sample_idx in range(len(y_train_)):
                 new_y_sample = dict()
-                for ne_type in sorted(list(y_train[sample_idx].keys())):
+                for ne_type in sorted(list(y_train_[sample_idx].keys())):
                     if ne_type == 'PER':
-                        new_y_sample['PERSON'] = y_train[sample_idx][ne_type]
+                        new_y_sample['PERSON'] = y_train_[sample_idx][ne_type]
                     elif ne_type == 'LOC':
-                        new_y_sample['LOCATION'] = y_train[sample_idx][ne_type]
+                        new_y_sample['LOCATION'] = y_train_[sample_idx][ne_type]
                     else:
-                        new_y_sample[ne_type] = y_train[sample_idx][ne_type]
-                y_train[sample_idx] = new_y_sample
+                        new_y_sample[ne_type] = y_train_[sample_idx][ne_type]
+                y_train_[sample_idx] = new_y_sample
                 del new_y_sample
             print('The Collection3 data for training have been loaded...')
             print('Number of samples is {0}.'.format(len(y_train)))
             print('')
-            if n_max_samples > 0:
-                index = sample_from_dataset(y=y_train, n=n_max_samples)
-                X_train = np.array(X_train, dtype=object)[index]
-                y_train = np.array(y_train, dtype=object)[index]
-                del index
-            recognizer.fit(X_train, y_train, validation_data=(X, y))
+            if (n_max_samples == 0) or ((n_max_samples > 0) and (X_train.shape[0] < n_max_samples)):
+                if n_max_samples > 0:
+                    index = sample_from_dataset(y=y_train, n=n_max_samples - X_train.shape[0])
+                    X_train_ = np.array(X_train_, dtype=object)[index]
+                    y_train_ = np.array(y_train_, dtype=object)[index]
+                    del index
+                X_train = np.vstack((X_train, X_train_))
+                y_train = np.vstack((y_train, y_train_))
+            del X_train_, y_train_
+        recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         with open(model_name, 'wb') as fp:
             pickle.dump(recognizer, fp)
         print('')
@@ -189,7 +193,7 @@ def main():
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
                         help='Allocable part of the GPU memory for the NER model.')
     parser.add_argument('--finetune_bert', dest='finetune_bert', required=False, action='store_true',
-                        default=False, help='Will be the BERT and CRF finetuned together? Or the BERT will be frozen?')
+                        default=False, help='Will be the BERT and last layers finetuned together? Or the BERT will be frozen?')
     parser.add_argument('--path_to_bert', dest='path_to_bert', required=False, type=str,
                         default=None, help='Path to the BERT model (if it is not specified, than the standard '
                                            'multilingual BERT model from the TF-Hub will be used).')
