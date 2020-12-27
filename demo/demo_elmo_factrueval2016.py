@@ -115,7 +115,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, elmo_will_b
                 y_train_[sample_idx] = new_y_sample
                 del new_y_sample
             print('The Collection3 data for training have been loaded...')
-            print('Number of samples is {0}.'.format(len(y_train)))
+            print('Number of samples is {0}.'.format(len(y_train_)))
             indices_of_samples = sorted(
                 list(range(len(y_train_))),
                 key=lambda sample_idx: (

@@ -28,9 +28,10 @@ except:
 
 
 def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_be_tuned: bool,
-          use_lang_features: bool, use_shapes: bool, lstm_layer_size: Union[int, None], l2: float,
-          max_epochs: int, patience: int, batch_size: int, gpu_memory_frac: float,
-          model_name: str, collection3_dir: Union[str, None]=None, n_max_samples: int=0) -> BERT_NER:
+          use_lang_features: bool, use_shapes: bool, lstm_layer_size: Union[int, None],
+          learning_rate: float, l2: float, max_epochs: int, patience: int, batch_size: int,
+          gpu_memory_frac: float, model_name: str, collection3_dir: Union[str, None]=None,
+          n_max_samples: int=0) -> BERT_NER:
     if os.path.isfile(model_name):
         with open(model_name, 'rb') as fp:
             recognizer = pickle.load(fp)
@@ -70,8 +71,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.25,
             max_epochs=max_epochs, patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=3e-6 if bert_will_be_tuned else 1e-4,
-            udpipe_lang='ru', use_nlp_features=use_lang_features, use_shapes=use_shapes
+            lr=learning_rate, udpipe_lang='ru', use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
         train_index, test_index = split_dataset(y=y, test_part=recognizer.validation_fraction)
         X_train = np.array(X, dtype=object)[train_index]
@@ -101,7 +101,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
                 y_train_[sample_idx] = new_y_sample
                 del new_y_sample
             print('The Collection3 data for training have been loaded...')
-            print('Number of samples is {0}.'.format(len(y_train)))
+            print('Number of samples is {0}.'.format(len(y_train_)))
             indices_of_samples = sorted(
                 list(range(len(y_train_))),
                 key=lambda sample_idx: (
@@ -218,6 +218,7 @@ def main():
                         help='Number of iterations with no improvement to wait before stopping the training.')
     parser.add_argument('--lstm', dest='lstm_units', type=int, required=False, default=None,
                         help='The LSTM layer size (if it is not specified, than the LSTM layer is not used).')
+    parser.add_argument('--lr', dest='lr', type=float, required=False, default=1e-4, help='Learning rate.')
     parser.add_argument('--l2', dest='l2_coeff', type=float, required=False, default=1e-2,
                         help='L2 regularization factor.')
     parser.add_argument('--gpu_frac', dest='gpu_memory_frac', type=float, required=False, default=0.9,
@@ -267,7 +268,7 @@ def main():
                        patience=args.patience, batch_size=args.batch_size, gpu_memory_frac=args.gpu_memory_frac,
                        model_name=os.path.normpath(args.model_name), lstm_layer_size=args.lstm_units, l2=args.l2_coeff,
                        split_by_paragraphs=(args.text_unit == 'paragraph'), collection3_dir=collection3_dir_name,
-                       n_max_samples=samples_number)
+                       n_max_samples=samples_number, learning_rate=args.lr)
     recognize(factrueval2016_testset_dir=testset_dir_name, recognizer=recognizer,
               results_dir=os.path.normpath(args.result_name), split_by_paragraphs=(args.text_unit == 'paragraph'))
 

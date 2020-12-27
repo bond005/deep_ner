@@ -880,9 +880,16 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
         else:
             if self.finetune_bert:
                 with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.0, kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
+                    if tf.test.gpu_device_name:
+                        rnn_layer = tf.keras.layers.Bidirectional(
+                            tf.keras.layers.CuDNNLSTM(units=self.lstm_units, kernel_initializer=glorot_init,
+                                                      return_sequences=True)
+                        )
+                    else:
+                        rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh,
+                                                            dropout=0.0, recurrent_dropout=0.0,
+                                                            kernel_initializer=glorot_init)
+                        rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
                     if additional_features is not None:
                         rnn_output = rnn_layer(tf.concat([sequence_output, additional_features], axis=-1))
                     else:
@@ -890,9 +897,17 @@ class BERT_NER(BaseEstimator, ClassifierMixin):
             else:
                 sequence_output_stop = tf.stop_gradient(sequence_output)
                 with tf.name_scope('bilstm_layer'):
-                    rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh, dropout=0.3,
-                                                        recurrent_dropout=0.0, kernel_initializer=glorot_init)
-                    rnn_layer = tf.keras.layers.Bidirectional(tf.keras.layers.RNN(rnn_cell, return_sequences=True))
+                    if tf.test.gpu_device_name:
+                        rnn_layer = tf.keras.layers.Bidirectional(
+                            tf.keras.layers.CuDNNLSTM(units=self.lstm_units, kernel_initializer=glorot_init,
+                                                      return_sequences=True)
+                        )
+                    else:
+                        rnn_cell = tf.keras.layers.LSTMCell(units=self.lstm_units, activation=tf.nn.tanh,
+                                                            dropout=0.0, recurrent_dropout=0.0,
+                                                            kernel_initializer=glorot_init)
+                        rnn_layer = tf.keras.layers.Bidirectional(
+                            tf.keras.layers.RNN(rnn_cell, return_sequences=True))
                     if additional_features is not None:
                         rnn_output = rnn_layer(tf.concat([sequence_output_stop, additional_features], axis=-1))
                     else:
