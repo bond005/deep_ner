@@ -54,7 +54,7 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             finetune_bert=bert_will_be_tuned, batch_size=batch_size, l2_reg=l2,
             bert_hub_module_handle=bert_hub_module_handle, lstm_units=lstm_layer_size, validation_fraction=0.25,
             max_epochs=max_epochs, patience=patience, gpu_memory_frac=gpu_memory_frac, verbose=True, random_seed=42,
-            lr=3e-6 if bert_will_be_tuned else 1e-4,
+            lr=3e-6 if bert_will_be_tuned else 1e-4, max_seq_length=256,
             udpipe_lang='ru', use_nlp_features=use_lang_features, use_shapes=use_shapes
         )
         if collection3_dir is None:
@@ -87,12 +87,17 @@ def train(factrueval2016_devset_dir: str, split_by_paragraphs: bool, bert_will_b
             print('The Collection3 data for training have been loaded...')
             print('Number of samples is {0}.'.format(len(y_train)))
             print('')
+            train_index, test_index = split_dataset(y=y, test_part=recognizer.validation_fraction)
+            X_train = np.concatenate((np.array(X_train, dtype=object), np.array(X, dtype=object)[train_index]))
+            y_train = np.concatenate((np.array(y_train, dtype=object), np.array(y, dtype=object)[train_index]))
+            X_val = np.array(X, dtype=object)[test_index]
+            y_val = np.array(y, dtype=object)[test_index]
             if n_max_samples > 0:
                 index = sample_from_dataset(y=y_train, n=n_max_samples)
-                X_train = np.array(X_train, dtype=object)[index]
-                y_train = np.array(y_train, dtype=object)[index]
+                X_train = X_train[index]
+                y_train = y_train[index]
                 del index
-            recognizer.fit(X_train, y_train, validation_data=(X, y))
+            recognizer.fit(X_train, y_train, validation_data=(X_val, y_val))
         with open(model_name, 'wb') as fp:
             pickle.dump(recognizer, fp)
         print('')

@@ -677,6 +677,8 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
     for text_file, annotation_file in all_file_pairs:
         with codecs.open(text_file, mode='r', encoding='utf-8', errors='ignore') as fp:
             full_text = fp.read()
+        if len(full_text.strip()) == 0:
+            continue
         entities_in_text = dict()
         with codecs.open(annotation_file, mode='r', encoding='utf-8', errors='ignore') as fp:
             cur_line = fp.readline()
@@ -763,8 +765,9 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
                 paragraph_end = -1
             if paragraph_end < 0:
                 full_text = full_text.replace('\n', ' ').replace('\r', ' ')
-                texts.append(full_text)
-                entities.append(entities_in_text)
+                if len(full_text.strip()) > 0:
+                    texts.append(full_text)
+                    entities.append(entities_in_text)
             else:
                 while paragraph_end >= 0:
                     entities_in_paragraph = dict()
@@ -803,8 +806,9 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
                                 else:
                                     raise ValueError('File `{0}`, entity type `{1}`: bounds of entities {2} are between'
                                                      ' paragraphs!'.format(annotation_file, entity_type, entity_bounds))
-                    texts.append(full_text[paragraph_start:paragraph_end])
-                    entities.append(entities_in_paragraph)
+                    if len(full_text[paragraph_start:paragraph_end].strip()) > 0:
+                        texts.append(full_text[paragraph_start:paragraph_end])
+                        entities.append(entities_in_paragraph)
                     paragraph_start = -1
                     idx = paragraph_end + 1
                     while idx < len(full_text):
@@ -863,12 +867,14 @@ def load_dataset_from_brat(brat_datadir_name: str, split_by_paragraphs: bool=Tru
                                 else:
                                     raise ValueError('File `{0}`, entity type `{1}`: bounds of entities {2} are between'
                                                      ' paragraphs!'.format(annotation_file, entity_type, entity_bounds))
-                    texts.append(full_text[paragraph_start:paragraph_end])
-                    entities.append(entities_in_paragraph)
+                    if len(full_text[paragraph_start:paragraph_end].strip()) > 0:
+                        texts.append(full_text[paragraph_start:paragraph_end])
+                        entities.append(entities_in_paragraph)
         else:
             full_text = full_text.replace('\n', ' ').replace('\r', ' ')
-            texts.append(full_text)
-            entities.append(entities_in_text)
+            if len(full_text.strip()) > 0:
+                texts.append(full_text)
+                entities.append(entities_in_text)
     return texts, entities
 
 
